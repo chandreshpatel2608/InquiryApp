@@ -5,9 +5,10 @@ import '../config.dart';
 
 class _SaleLine {
   int? itemId;
+  int? categoryId;
   final TextEditingController qtyCtrl;
   final TextEditingController rateCtrl;
-  _SaleLine({this.itemId, String qty = '1', String rate = ''})
+  _SaleLine({this.itemId, this.categoryId, String qty = '1', String rate = ''})
       : qtyCtrl = TextEditingController(text: qty),
         rateCtrl = TextEditingController(text: rate);
 
@@ -35,7 +36,8 @@ class SalesEntryFormScreen extends StatefulWidget {
 
 class _SalesEntryFormScreenState extends State<SalesEntryFormScreen> {
   List<dynamic> _customers = [];
-  List<dynamic> _items = [];
+  List<dynamic> _products = [];
+  List<dynamic> _categories = [];
   bool _loading = true;
   bool _saving = false;
 
@@ -62,11 +64,13 @@ class _SalesEntryFormScreenState extends State<SalesEntryFormScreen> {
 
   Future<void> _load() async {
     final customers = await ApiService.getCustomers(widget.userId);
-    final items = await ApiService.getItems(widget.userId);
+    final products = await ApiService.getProducts(widget.userId);
+    final categories = await ApiService.getCategories(widget.userId);
     if (!mounted) return;
     setState(() {
       _customers = customers;
-      _items = items;
+      _products = products;
+      _categories = categories;
       _loading = false;
     });
 
@@ -77,8 +81,13 @@ class _SalesEntryFormScreenState extends State<SalesEntryFormScreen> {
       _salesType = (e['salesType'] ?? 'Retail').toString();
       try { _invoiceDate = DateTime.parse(e['invoiceDate']); } catch (_) {}
       for (final it in (e['items'] as List? ?? [])) {
+        final product = products.cast<Map<String, dynamic>?>().firstWhere(
+          (p) => p?['id'] == it['itemId'],
+          orElse: () => null,
+        );
         _lines.add(_SaleLine(
           itemId: it['itemId'],
+          categoryId: product?['categoryId'] as int? ?? 0,
           qty: (it['qty'] ?? 1).toString(),
           rate: (it['rate'] ?? 0).toString(),
         ));
@@ -155,14 +164,14 @@ class _SalesEntryFormScreenState extends State<SalesEntryFormScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : (_customers.isEmpty || _items.isEmpty)
+          : (_customers.isEmpty || _products.isEmpty)
               ? Center(
                   child: Padding(
                     padding: const EdgeInsets.all(24),
                     child: Text(
                       _customers.isEmpty
                           ? 'Please add customers in Customer Master first.'
-                          : 'Please add items in Item Master first.',
+                                          : 'Please add products in the catalogue first.',
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -289,17 +298,21 @@ class _SalesEntryFormScreenState extends State<SalesEntryFormScreen> {
               children: [
                 Expanded(
                   child: DropdownButtonFormField<int>(
-                    initialValue: line.itemId,
+                    initialValue: line.categoryId,
                     isExpanded: true,
                     decoration: const InputDecoration(
-                        labelText: 'Item', border: OutlineInputBorder(), isDense: true),
-                    items: _items
-                        .map<DropdownMenuItem<int>>((it) => DropdownMenuItem<int>(
-                              value: it['id'],
-                              child: Text(it['itemName'] ?? '', overflow: TextOverflow.ellipsis),
-                            ))
-                        .toList(),
-                    onChanged: (v) => setState(() => line.itemId = v),
+                        labelText: 'Category', border: OutlineInputBorder(), isDense: true),
+                    items: [
+                      const DropdownMenuItem<int>(value: 0, child: Text('Other Products')),
+                      ..._categories.map<DropdownMenuItem<int>>((category) => DropdownMenuItem<int>(
+                            value: category['id'],
+                            child: Text(category['name'] ?? '', overflow: TextOverflow.ellipsis),
+                          )),
+                    ],
+                    onChanged: (v) => setState(() {
+                      line.categoryId = v;
+                      line.itemId = null;
+                    }),
                   ),
                 ),
                 IconButton(
@@ -307,6 +320,25 @@ class _SalesEntryFormScreenState extends State<SalesEntryFormScreen> {
                   onPressed: _lines.length > 1 ? () => _removeLine(index) : null,
                 ),
               ],
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<int>(
+              initialValue: line.itemId,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Product', border: OutlineInputBorder(), isDense: true),
+              items: _products
+                .where((product) => line.categoryId == 0
+                  ? product['categoryId'] == null
+                  : product['categoryId'] == line.categoryId)
+                .map<DropdownMenuItem<int>>((product) => DropdownMenuItem<int>(
+                  value: product['id'],
+                  child: Text(product['name'] ?? '', overflow: TextOverflow.ellipsis),
+                  ))
+                .toList(),
+              onChanged: line.categoryId == null
+                ? null
+                : (v) => setState(() => line.itemId = v),
             ),
             const SizedBox(height: 8),
             Row(

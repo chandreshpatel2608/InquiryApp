@@ -483,8 +483,8 @@ class _FestivalCalendarScreenState extends State<FestivalCalendarScreen> {
               ? const Center(child: Text('No templates found', style: TextStyle(color: Colors.grey)))
               : GridView.builder(
                   padding: const EdgeInsets.all(10),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 0.85),
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 200, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 0.85),
                   itemCount: _templates.length,
                   itemBuilder: (ctx, i) {
                     final t = _templates[i];

@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import '../config.dart';
+import '../widgets/searchable_dropdown.dart';
 
-/// Stock Entry — default shows all items with current stock, searchable by item
-/// name. Add a purchase entry (item, qty, purchase date). List / delete entries.
+/// Stock Entry — shows product stock and purchase entries. Stock is calculated
+/// from product purchases minus product sales.
 class StockEntryScreen extends StatefulWidget {
   final int userId;
   const StockEntryScreen({super.key, required this.userId});
@@ -21,7 +22,8 @@ class _StockEntryScreenState extends State<StockEntryScreen>
 
   List<dynamic> _summary = [];
   List<dynamic> _entries = [];
-  List<dynamic> _items = [];
+  List<dynamic> _products = [];
+  List<dynamic> _categories = [];
   bool _loading = true;
 
   @override
@@ -42,12 +44,14 @@ class _StockEntryScreenState extends State<StockEntryScreen>
     setState(() => _loading = true);
     final summary = await ApiService.getStockSummary(widget.userId, search: _search);
     final entries = await ApiService.getStockEntries(widget.userId, search: _search);
-    final items = await ApiService.getItems(widget.userId);
+    final products = await ApiService.getProducts(widget.userId);
+    final categories = await ApiService.getCategories(widget.userId);
     if (mounted) {
       setState(() {
         _summary = summary;
         _entries = entries;
-        _items = items;
+        _products = products;
+        _categories = categories;
         _loading = false;
       });
     }
@@ -61,14 +65,16 @@ class _StockEntryScreenState extends State<StockEntryScreen>
     ));
   }
 
-  Future<void> _addStockForm() async {
-    if (_items.isEmpty) {
-      _snack('Please add items in Item Master first', error: true);
+  Future<void> _addStockForm([Map<String, dynamic>? existing]) async {
+    if (_products.isEmpty) {
+      _snack('Please add products in the catalogue first', error: true);
       return;
     }
-    int? itemId;
+    int? categoryId = existing?['categoryId'] as int?;
+    int? productId = existing?['itemId'] as int?;
     final qtyCtrl = TextEditingController();
-    DateTime purchaseDate = DateTime.now();
+    qtyCtrl.text = existing?['quantity']?.toString() ?? '';
+    DateTime purchaseDate = DateTime.tryParse(existing?['purchaseDate']?.toString() ?? '') ?? DateTime.now();
     bool saving = false;
 
     await showModalBottomSheet(
@@ -90,7 +96,7 @@ class _StockEntryScreenState extends State<StockEntryScreen>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Add Stock Entry',
+                    Text(existing == null ? 'Add Stock Entry' : 'Edit Stock Entry',
                         style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                     IconButton(
                       icon: const Icon(Icons.close),
@@ -99,18 +105,43 @@ class _StockEntryScreenState extends State<StockEntryScreen>
                   ],
                 ),
                 const SizedBox(height: 6),
-                DropdownButtonFormField<int>(
-                  initialValue: itemId,
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                      labelText: 'Item *', border: OutlineInputBorder()),
-                  items: _items
-                      .map<DropdownMenuItem<int>>((it) => DropdownMenuItem<int>(
-                            value: it['id'],
-                            child: Text(it['itemName'] ?? '', overflow: TextOverflow.ellipsis),
-                          ))
+                SearchableDropdown<Map<String, dynamic>>(
+                  items: [
+                    {'id': 0, 'name': 'Other Products'},
+                    ..._categories.map((it) => Map<String, dynamic>.from(it)),
+                  ],
+                  initialValue: categoryId == null ? null : {
+                    'id': categoryId,
+                    'name': categoryId == 0
+                        ? 'Other Products'
+                        : _categories.firstWhere((it) => it['id'] == categoryId, orElse: () => {'name': ''})['name'],
+                  },
+                  itemLabel: (item) => item['name']?.toString() ?? '',
+                  labelText: 'Category *',
+                  onChanged: (value) => setModal(() {
+                    categoryId = value?['id'] as int?;
+                    productId = null;
+                  }),
+                  validator: (value) => value == null ? 'Select a category' : null,
+                ),
+                const SizedBox(height: 12),
+                SearchableDropdown<Map<String, dynamic>>(
+                  items: _products
+                      .where((product) => categoryId == 0
+                          ? product['categoryId'] == null
+                          : product['categoryId'] == categoryId)
+                      .map((item) => Map<String, dynamic>.from(item))
                       .toList(),
-                  onChanged: (v) => setModal(() => itemId = v),
+                  initialValue: productId == null
+                      ? null
+                      : _products.where((item) => item['id'] == productId).map((item) => Map<String, dynamic>.from(item)).isEmpty
+                          ? null
+                          : Map<String, dynamic>.from(_products.firstWhere((item) => item['id'] == productId)),
+                  itemLabel: (item) => item['name']?.toString() ?? '',
+                  labelText: 'Product *',
+                  enabled: categoryId != null,
+                  onChanged: (value) => setModal(() => productId = value?['id'] as int?),
+                  validator: (value) => value == null ? 'Select a product' : null,
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -146,8 +177,8 @@ class _StockEntryScreenState extends State<StockEntryScreen>
                         : const Icon(Icons.save),
                     label: Text(saving ? 'Saving...' : 'Save Stock'),
                     onPressed: saving ? null : () async {
-                      if (itemId == null) {
-                        _snack('Please select an item', error: true);
+                      if (categoryId == null || productId == null) {
+                        _snack('Please select a category and product', error: true);
                         return;
                       }
                       final qty = int.tryParse(qtyCtrl.text.trim()) ?? 0;
@@ -157,12 +188,15 @@ class _StockEntryScreenState extends State<StockEntryScreen>
                       }
                       setModal(() => saving = true);
                       final navigator = Navigator.of(ctx);
-                      final result = await ApiService.addStock({
+                      final data = {
                         'userId': widget.userId,
-                        'itemId': itemId,
+                        'productId': productId,
                         'quantity': qty,
                         'purchaseDate': purchaseDate.toIso8601String(),
-                      });
+                      };
+                      final result = existing == null
+                          ? await ApiService.addStock(data)
+                          : await ApiService.updateStock(existing['id'] as int, data);
                       if (!mounted) return;
                       if (result['success'] == true) {
                         navigator.pop();
@@ -323,9 +357,19 @@ class _StockEntryScreenState extends State<StockEntryScreen>
               title: Text(e['itemName'] ?? '',
                   style: const TextStyle(fontWeight: FontWeight.w600)),
               subtitle: Text('Qty: ${e['quantity']}  •  ${e['purchaseDate']}'),
-              trailing: IconButton(
-                icon: const Icon(Icons.delete_outline, color: Colors.red),
-                onPressed: () => _confirmDeleteEntry(e['id']),
+              trailing: Wrap(
+                children: [
+                  IconButton(
+                    tooltip: 'Edit purchase entry',
+                    icon: const Icon(Icons.edit_outlined),
+                    onPressed: () => _addStockForm(Map<String, dynamic>.from(e)),
+                  ),
+                  IconButton(
+                    tooltip: 'Delete purchase entry',
+                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                    onPressed: () => _confirmDeleteEntry(e['id'] as int),
+                  ),
+                ],
               ),
             ),
           );

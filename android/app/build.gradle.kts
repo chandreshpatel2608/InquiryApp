@@ -4,6 +4,11 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+val brandedAppName =
+    (project.findProperty("appName") as String?)
+        ?: System.getenv("APP_NAME")
+        ?: "Dukan Smart"
+
 android {
     namespace = "com.rudra.rudra_inquiry"
     compileSdk = flutter.compileSdkVersion
@@ -23,6 +28,7 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["appName"] = brandedAppName
     }
 
     buildTypes {

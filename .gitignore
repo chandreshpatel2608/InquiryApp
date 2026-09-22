@@ -43,9 +43,13 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
-/.vs/app/FileContentIndex/0db05081-4eff-4c52-bdcb-4cd62a7c54a8.vsidx
-/.vs/app/FileContentIndex/2303332b-cf4f-4704-a3f3-402c9b13acde.vsidx
-/.vs/app/FileContentIndex/c9d20f1d-ebe9-4aa7-adf7-e1227fab8550.vsidx
 /.vs/app/FileContentIndex/f3e6f1d9-c408-4f2e-8974-a5dad6913b78.vsidx
+/.vs/app/v17/.wsuo
+/.vs/app/v17/DocumentLayout.json
 /.vs/slnx.sqlite
-*.vsidx
+/.vs/app/FileContentIndex/2303332b-cf4f-4704-a3f3-402c9b13acde.vsidx
+/.vs/app/FileContentIndex/60309715-8a6b-4c09-9318-96ce2b4e484a.vsidx
+/.gitignore
+/.vs/app/FileContentIndex/c9d20f1d-ebe9-4aa7-adf7-e1227fab8550.vsidx
+/.vs/VSWorkspaceState.json
+/.vscode/settings.json

@@ -106,13 +106,15 @@ class _ManageCatalogScreenState extends State<ManageCatalogScreen>
     return picked == null ? null : File(picked.path);
   }
 
-  Future<void> _addProductDialog() async {
-    final nameCtrl = TextEditingController();
-    final descCtrl = TextEditingController();
-    final priceCtrl = TextEditingController();
-    final waCtrl = TextEditingController();
+  Future<void> _addProductDialog({Map<String, dynamic>? existing}) async {
+    final isEdit = existing != null;
+    final nameCtrl = TextEditingController(text: existing?['name']?.toString() ?? '');
+    final descCtrl = TextEditingController(text: existing?['description']?.toString() ?? '');
+    final priceCtrl = TextEditingController(text: existing?['price']?.toString() ?? '');
+    final waCtrl = TextEditingController(text: existing?['whatsAppMessage']?.toString() ?? '');
+    final existingImageUrl = _imageUrl(existing?['imagePath']?.toString() ?? '');
     File? image;
-    bool isEcommerce = false;
+    bool isEcommerce = existing?['isEcommerce'] == true;
     bool saving = false;
 
     await showModalBottomSheet(
@@ -135,8 +137,8 @@ class _ManageCatalogScreenState extends State<ManageCatalogScreen>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Add Product',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    Text(isEdit ? 'Edit Product' : 'Add Product',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 12),
                     GestureDetector(
                       onTap: () async {
@@ -152,16 +154,24 @@ class _ManageCatalogScreenState extends State<ManageCatalogScreen>
                           border: Border.all(color: Colors.grey[300]!),
                         ),
                         child: image == null
-                            ? Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.add_a_photo,
-                                      color: Colors.grey[400], size: 34),
-                                  const SizedBox(height: 6),
-                                  Text('Tap to add product image',
-                                      style: TextStyle(color: Colors.grey[500])),
-                                ],
-                              )
+                            ? (existingImageUrl.isNotEmpty
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: CachedNetworkImage(
+                                        imageUrl: existingImageUrl,
+                                        fit: BoxFit.cover, width: double.infinity,
+                                        errorWidget: (_, __, ___) => const Icon(Icons.broken_image)),
+                                  )
+                                : Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.add_a_photo,
+                                          color: Colors.grey[400], size: 34),
+                                      const SizedBox(height: 6),
+                                      Text(isEdit ? 'Tap to change image' : 'Tap to add product image',
+                                          style: TextStyle(color: Colors.grey[500])),
+                                    ],
+                                  ))
                             : ClipRRect(
                                 borderRadius: BorderRadius.circular(12),
                                 child: Image.file(image!,
@@ -232,27 +242,42 @@ class _ManageCatalogScreenState extends State<ManageCatalogScreen>
                                 }
                                 setModal(() => saving = true);
                                 final navigator = Navigator.of(ctx);
-                                final result = await ApiService.addProduct(
-                                  userId: _userId,
-                                  name: nameCtrl.text.trim(),
-                                  description: descCtrl.text.trim().isEmpty
-                                      ? null
-                                      : descCtrl.text.trim(),
-                                  price: double.tryParse(priceCtrl.text.trim()),
-                                  whatsAppMessage: waCtrl.text.trim().isEmpty
-                                      ? null
-                                      : waCtrl.text.trim(),
-                                  isEcommerce: isEcommerce,
-                                  image: image,
-                                );
+                                final result = isEdit
+                                    ? await ApiService.updateProduct(
+                                        userId: _userId,
+                                        productId: existing['id'] as int,
+                                        name: nameCtrl.text.trim(),
+                                        description: descCtrl.text.trim().isEmpty
+                                            ? null
+                                            : descCtrl.text.trim(),
+                                        price: double.tryParse(priceCtrl.text.trim()),
+                                        whatsAppMessage: waCtrl.text.trim().isEmpty
+                                            ? null
+                                            : waCtrl.text.trim(),
+                                        isEcommerce: isEcommerce,
+                                        image: image,
+                                      )
+                                    : await ApiService.addProduct(
+                                        userId: _userId,
+                                        name: nameCtrl.text.trim(),
+                                        description: descCtrl.text.trim().isEmpty
+                                            ? null
+                                            : descCtrl.text.trim(),
+                                        price: double.tryParse(priceCtrl.text.trim()),
+                                        whatsAppMessage: waCtrl.text.trim().isEmpty
+                                            ? null
+                                            : waCtrl.text.trim(),
+                                        isEcommerce: isEcommerce,
+                                        image: image,
+                                      );
                                 if (!mounted) return;
                                 if (result != null && !result.containsKey('error')) {
                                   navigator.pop();
-                                  _snack('Product added!');
+                                  _snack(isEdit ? 'Product updated!' : 'Product added!');
                                   _loadProducts();
                                 } else {
                                   setModal(() => saving = false);
-                                  _snack(result?['error'] ?? 'Failed to add product', error: true);
+                                  _snack(result?['error'] ?? 'Failed to save product', error: true);
                                 }
                               },
                       ),
@@ -447,9 +472,18 @@ class _ManageCatalogScreenState extends State<ManageCatalogScreen>
                 p['price'] != null ? '₹ ${p['price']}' : (p['description'] ?? ''),
                 maxLines: 1, overflow: TextOverflow.ellipsis,
               ),
-              trailing: IconButton(
-                icon: const Icon(Icons.delete_outline, color: Colors.red),
-                onPressed: () => _confirmDeleteProduct(p['id']),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.edit, color: Colors.blue),
+                    onPressed: () => _addProductDialog(existing: Map<String, dynamic>.from(p)),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                    onPressed: () => _confirmDeleteProduct(p['id']),
+                  ),
+                ],
               ),
             ),
           );
@@ -470,8 +504,8 @@ class _ManageCatalogScreenState extends State<ManageCatalogScreen>
       onRefresh: _loadGallery,
       child: GridView.builder(
         padding: const EdgeInsets.all(12),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
+        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 130,
           crossAxisSpacing: 8,
           mainAxisSpacing: 8,
         ),

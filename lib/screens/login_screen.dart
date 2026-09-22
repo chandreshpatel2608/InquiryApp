@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -5,6 +6,7 @@ import '../config.dart';
 import '../services/api_service.dart';
 import 'home_screen.dart';
 import 'forgot_password_screen.dart';
+import 'customer_storefront_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -36,7 +38,8 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final user = await ApiService.login(mobile, password);
+      final user = await ApiService.login(mobile, password)
+          .timeout(const Duration(seconds: 20));
       if (!mounted) return;
 
       if (user != null) {
@@ -55,6 +58,10 @@ class _LoginScreenState extends State<LoginScreen> {
       } else {
         setState(() => _error = 'Invalid mobile or password.');
       }
+    } on ApiException catch (e) {
+      setState(() => _error = e.message);
+    } on TimeoutException {
+      setState(() => _error = 'Server is taking too long to respond. Please try again.');
     } catch (e) {
       setState(() => _error = 'Connection error. Check server & network.');
     } finally {
@@ -174,6 +181,16 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   child: const Text('Forgot Password?',
                       style: TextStyle(fontSize: 13)),
+                ),
+                TextButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const CustomerStorefrontScreen(),
+                    ),
+                  ),
+                  icon: const Icon(Icons.shopping_bag_outlined, size: 18),
+                  label: const Text('Customer Shopping'),
                 ),
                 const SizedBox(height: 8),
                 Text(

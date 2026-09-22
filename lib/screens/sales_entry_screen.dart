@@ -132,10 +132,12 @@ class _SalesEntryScreenState extends State<SalesEntryScreen> {
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text('#${s['invoiceNumber'] ?? ''}  •  ${s['customerName'] ?? ''}',
+                                            maxLines: 1, overflow: TextOverflow.ellipsis,
                                             style: const TextStyle(
                                                 fontWeight: FontWeight.w700, fontSize: 15)),
                                         const SizedBox(height: 2),
                                         Text('${s['invoiceDate'] ?? ''}  •  ${s['itemCount'] ?? 0} item(s)',
+                                            maxLines: 1, overflow: TextOverflow.ellipsis,
                                             style: TextStyle(color: Colors.grey[600], fontSize: 12)),
                                       ],
                                     ),

@@ -3,6 +3,14 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../config.dart';
 
+/// Thrown by API calls that want to surface the server's exact error message.
+class ApiException implements Exception {
+  final String message;
+  ApiException(this.message);
+  @override
+  String toString() => message;
+}
+
 class ApiService {
   // ── Persistent HTTP client (reuses TCP connections) ──
   static final http.Client _client = http.Client();
@@ -25,7 +33,44 @@ class ApiService {
       body: jsonEncode({'mobile': mobile, 'password': password}),
     );
     if (res.statusCode == 200) return jsonDecode(res.body);
+    // Surface the server's actual error message (e.g. "Invalid password.")
+    // instead of silently returning null so the UI can show what went wrong.
+    try {
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      throw ApiException(body['error']?.toString() ?? 'Login failed.');
+    } on FormatException {
+      throw ApiException('Login failed (server error ${res.statusCode}).');
+    }
+  }
+
+  // ── Verify User (check active status + get fresh data) ──
+  static Future<Map<String, dynamic>?> verifyUser(int userId) async {
+    try {
+      final res = await _client.get(
+        Uri.parse('$baseUrl/verify-user?userId=$userId'),
+      );
+      if (res.statusCode == 200) return jsonDecode(res.body);
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ── My Profile (get / update) ──
+  static Future<Map<String, dynamic>?> getProfile(int userId) async {
+    final res = await _client.get(Uri.parse('$baseUrl/profile?userId=$userId'));
+    if (res.statusCode == 200) return jsonDecode(res.body);
     return null;
+  }
+
+  static Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> data) async {
+    final res = await _client.put(
+      Uri.parse('$baseUrl/profile'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(data),
+    );
+    if (res.statusCode == 200) return {'success': true};
+    return _errBody(res, 'Failed to update profile.');
   }
 
   // ── Forgot Password ──
@@ -328,9 +373,295 @@ class ApiService {
     return res.statusCode == 200;
   }
 
+  /// Update an existing product with an optional replacement image.
+  static Future<Map<String, dynamic>?> updateProduct({
+    required int userId,
+    required int productId,
+    required String name,
+    String? description,
+    double? price,
+    String? whatsAppMessage,
+    bool isEcommerce = false,
+    File? image,
+  }) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/products/update'));
+    request.fields['userId'] = userId.toString();
+    request.fields['productId'] = productId.toString();
+    request.fields['name'] = name;
+    if (description != null) request.fields['description'] = description;
+    if (price != null) request.fields['price'] = price.toString();
+    if (whatsAppMessage != null) request.fields['whatsAppMessage'] = whatsAppMessage;
+    request.fields['isEcommerce'] = isEcommerce.toString();
+    if (image != null) {
+      request.files.add(await http.MultipartFile.fromPath('image', image.path));
+    }
+    final response = await request.send();
+    final body = await response.stream.bytesToString();
+    if (response.statusCode == 200) {
+      return jsonDecode(body);
+    }
+    try {
+      final err = jsonDecode(body);
+      return {'error': err['error'] ?? err['title'] ?? 'Failed to update product.'};
+    } catch (_) {
+      return {'error': 'Failed to update product (HTTP ${response.statusCode}).'};
+    }
+  }
   // ═══════════════════════════════════════════════════════════════════
-  // BILLING / INVENTORY  (Customer, Item, Stock, Sales)
+
   // ═══════════════════════════════════════════════════════════════════
+  // MOBILE STOREFRONT (customer auth, cart, checkout, orders)
+  // ═══════════════════════════════════════════════════════════════════
+
+  static Map<String, String> _storefrontHeaders(String token) => {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer $token',
+  };
+
+  static Future<Map<String, dynamic>> _storefrontResponse(
+      Future<http.Response> response, String fallback) async {
+    final res = await response;
+    try {
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      if (res.statusCode >= 200 && res.statusCode < 300) return body;
+      throw ApiException(body['error']?.toString() ?? fallback);
+    } on FormatException {
+      throw ApiException('$fallback (HTTP ${res.statusCode}).');
+    }
+  }
+
+  static Future<List<dynamic>> getStorefrontProducts(int cardProfileId) async {
+    final res = await _client.get(
+      Uri.parse('$baseUrl/storefront/$cardProfileId/products'),
+    );
+    if (res.statusCode == 200) return jsonDecode(res.body) as List<dynamic>;
+    return [];
+  }
+
+  static Future<Map<String, dynamic>> resolveStorefront(String slug) {
+    return _storefrontResponse(
+      _client.get(
+        Uri.parse('$baseUrl/storefront/resolve?slug=${Uri.encodeQueryComponent(slug)}'),
+      ),
+      'Unable to find that store.',
+    );
+  }
+
+  static Future<Map<String, dynamic>> registerStorefrontCustomer({
+    required int cardProfileId,
+    required String name,
+    required String mobile,
+    required String password,
+    String? email,
+    String? address,
+  }) {
+    return _storefrontResponse(
+      _client.post(
+        Uri.parse('$baseUrl/storefront/register'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'cardProfileId': cardProfileId,
+          'name': name,
+          'mobile': mobile,
+          'password': password,
+          'email': email,
+          'address': address,
+        }),
+      ),
+      'Unable to create your customer account.',
+    );
+  }
+
+  static Future<Map<String, dynamic>> loginStorefrontCustomer({
+    required int cardProfileId,
+    required String mobile,
+    required String password,
+  }) {
+    return _storefrontResponse(
+      _client.post(
+        Uri.parse('$baseUrl/storefront/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'cardProfileId': cardProfileId,
+          'mobile': mobile,
+          'password': password,
+        }),
+      ),
+      'Unable to sign in.',
+    );
+  }
+
+  static Future<Map<String, dynamic>> getStorefrontCart({
+    required int cardProfileId,
+    required String token,
+  }) {
+    return _storefrontResponse(
+      _client.get(
+        Uri.parse('$baseUrl/storefront/$cardProfileId/cart'),
+        headers: _storefrontHeaders(token),
+      ),
+      'Unable to load your cart.',
+    );
+  }
+
+  static Future<Map<String, dynamic>> updateStorefrontCart({
+    required int cardProfileId,
+    required String token,
+    required int productId,
+    required int quantity,
+  }) {
+    return _storefrontResponse(
+      _client.post(
+        Uri.parse('$baseUrl/storefront/$cardProfileId/cart/items'),
+        headers: _storefrontHeaders(token),
+        body: jsonEncode({'productId': productId, 'quantity': quantity}),
+      ),
+      'Unable to update your cart.',
+    );
+  }
+
+  static Future<Map<String, dynamic>> checkoutStorefrontCart({
+    required int cardProfileId,
+    required String token,
+    required String deliveryAddress,
+    required String paymentMethod,
+    String? name,
+    String? mobile,
+    String? email,
+  }) {
+    return _storefrontResponse(
+      _client.post(
+        Uri.parse('$baseUrl/storefront/$cardProfileId/checkout'),
+        headers: _storefrontHeaders(token),
+        body: jsonEncode({
+          'name': name,
+          'mobile': mobile,
+          'email': email,
+          'deliveryAddress': deliveryAddress,
+          'paymentMethod': paymentMethod,
+        }),
+      ),
+      'Checkout could not be completed.',
+    );
+  }
+
+  static Future<Map<String, dynamic>> submitStorefrontUpiPayment({
+    required int orderId,
+    required String token,
+    required String paymentReference,
+  }) {
+    return _storefrontResponse(
+      _client.post(
+        Uri.parse('$baseUrl/storefront/orders/$orderId/upi-submission'),
+        headers: _storefrontHeaders(token),
+        body: jsonEncode({'paymentReference': paymentReference}),
+      ),
+      'Unable to submit the UPI payment reference.',
+    );
+  }
+
+  static Future<Map<String, dynamic>> submitStorefrontReview({
+    required int cardProfileId,
+    required String token,
+    required int rating,
+    String? comment,
+  }) {
+    return _storefrontResponse(
+      _client.post(
+        Uri.parse('$baseUrl/storefront/$cardProfileId/review'),
+        headers: _storefrontHeaders(token),
+        body: jsonEncode({'rating': rating, 'comment': comment}),
+      ),
+      'Unable to submit your review.',
+    );
+  }
+
+  static Future<Map<String, dynamic>> createMobileRazorpayOrder({
+    required int orderId,
+    required String token,
+  }) {
+    return _storefrontResponse(
+      _client.post(
+        Uri.parse('$baseUrl/storefront/orders/$orderId/razorpay'),
+        headers: _storefrontHeaders(token),
+      ),
+      'Unable to start the card payment.',
+    );
+  }
+
+  static Future<Map<String, dynamic>> verifyMobileRazorpay({
+    required int orderId,
+    required String token,
+    required String razorpayPaymentId,
+    required String razorpayOrderId,
+    required String razorpaySignature,
+  }) {
+    return _storefrontResponse(
+      _client.post(
+        Uri.parse('$baseUrl/storefront/orders/$orderId/razorpay-verify'),
+        headers: _storefrontHeaders(token),
+        body: jsonEncode({
+          'razorpayPaymentId': razorpayPaymentId,
+          'razorpayOrderId': razorpayOrderId,
+          'razorpaySignature': razorpaySignature,
+        }),
+      ),
+      'Unable to verify the card payment.',
+    );
+  }
+
+  static Future<Map<String, dynamic>> editStorefrontOrder({
+    required int orderId,
+    required String token,
+    required String name,
+    required String mobile,
+    String? email,
+    String? deliveryAddress,
+  }) {
+    return _storefrontResponse(
+      _client.put(
+        Uri.parse('$baseUrl/storefront/orders/$orderId'),
+        headers: _storefrontHeaders(token),
+        body: jsonEncode({
+          'name': name,
+          'mobile': mobile,
+          'email': email,
+          'deliveryAddress': deliveryAddress,
+        }),
+      ),
+      'Unable to update the order.',
+    );
+  }
+
+  static Future<Map<String, dynamic>> getStorefrontUpiPayment({
+    required int orderId,
+    required String token,
+  }) {
+    return _storefrontResponse(
+      _client.get(
+        Uri.parse('$baseUrl/storefront/orders/$orderId/upi'),
+        headers: _storefrontHeaders(token),
+      ),
+      'Unable to start the UPI payment.',
+    );
+  }
+
+  static Future<List<dynamic>> getStorefrontOrders({
+    required int cardProfileId,
+    required String token,
+  }) async {
+    final res = await _client.get(
+      Uri.parse('$baseUrl/storefront/$cardProfileId/orders'),
+      headers: _storefrontHeaders(token),
+    );
+    if (res.statusCode == 200) return jsonDecode(res.body) as List<dynamic>;
+    try {
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      throw ApiException(body['error']?.toString() ?? 'Unable to load orders.');
+    } on FormatException {
+      throw ApiException('Unable to load orders (HTTP ${res.statusCode}).');
+    }
+  }
 
   static Map<String, dynamic> _errBody(http.Response res, String fallback) {
     try {
@@ -385,6 +716,85 @@ class ApiService {
     return res.statusCode == 200;
   }
 
+  static Future<List<String>> uploadItemImages(int userId, List<File> files) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/items/upload-images'));
+    request.fields['userId'] = userId.toString();
+    for (final file in files) {
+      request.files.add(await http.MultipartFile.fromPath('files', file.path));
+    }
+    final response = await request.send();
+    final body = await response.stream.bytesToString();
+    if (response.statusCode != 200) return [];
+    return List<String>.from(jsonDecode(body)['imagePaths'] ?? const []);
+  }
+
+  static Future<List<dynamic>> getTransports(int userId) async {
+    final res = await _client.get(Uri.parse('$baseUrl/transports?userId=$userId'));
+    if (res.statusCode == 200) return jsonDecode(res.body);
+    return [];
+  }
+  static Future<Map<String, dynamic>> saveTransport(int userId, String name, {int? id}) async {
+    final data = {'userId': userId, 'name': name.trim()};
+    final res = id == null
+        ? await _client.post(Uri.parse('$baseUrl/transports'), headers: {'Content-Type': 'application/json'}, body: jsonEncode(data))
+        : await _client.put(Uri.parse('$baseUrl/transports/$id'), headers: {'Content-Type': 'application/json'}, body: jsonEncode(data));
+    if (res.statusCode == 200) return {'success': true, ...jsonDecode(res.body)};
+    return _errBody(res, 'Unable to save transporter.');
+  }
+
+  static Future<bool> deleteTransport(int userId, int id) async {
+    final res = await _client.delete(Uri.parse('$baseUrl/transports/$id?userId=$userId'));
+    return res.statusCode == 200;
+  }
+
+  static Future<List<dynamic>> getPackingLists(int userId) async {
+    final res = await _client.get(Uri.parse('$baseUrl/packing-lists?userId=$userId'));
+    if (res.statusCode == 200) return jsonDecode(res.body);
+    return [];
+  }
+
+  static Future<Map<String, dynamic>> savePackingList(Map<String, dynamic> data, {int? id}) async {
+    final res = id == null
+        ? await _client.post(Uri.parse('$baseUrl/packing-lists'), headers: {'Content-Type': 'application/json'}, body: jsonEncode(data))
+        : await _client.put(Uri.parse('$baseUrl/packing-lists/$id'), headers: {'Content-Type': 'application/json'}, body: jsonEncode(data));
+    if (res.statusCode == 200) return {'success': true, ...jsonDecode(res.body)};
+    return _errBody(res, 'Failed to save packing list.');
+  }
+
+  static Future<bool> deletePackingList(int userId, int id) async {
+    final res = await _client.delete(Uri.parse('$baseUrl/packing-lists/$id?userId=$userId'));
+    return res.statusCode == 200;
+  }
+
+  static Future<String?> uploadPackingItem(int userId, File file) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/packing-lists/upload-item'));
+    request.fields['userId'] = userId.toString();
+    request.files.add(await http.MultipartFile.fromPath('file', file.path));
+    final response = await request.send();
+    final body = await response.stream.bytesToString();
+    if (response.statusCode != 200) return null;
+    return jsonDecode(body)['uploadItemPath'] as String?;
+  }
+
+  static Future<List<dynamic>> getReplacements(int userId) async {
+    final res = await _client.get(Uri.parse('$baseUrl/replacements?userId=$userId'));
+    if (res.statusCode == 200) return jsonDecode(res.body);
+    return [];
+  }
+
+  static Future<Map<String, dynamic>> saveReplacement(Map<String, dynamic> data, {int? id}) async {
+    final res = id == null
+        ? await _client.post(Uri.parse('$baseUrl/replacements'), headers: {'Content-Type': 'application/json'}, body: jsonEncode(data))
+        : await _client.put(Uri.parse('$baseUrl/replacements/$id'), headers: {'Content-Type': 'application/json'}, body: jsonEncode(data));
+    if (res.statusCode == 200) return {'success': true, ...jsonDecode(res.body)};
+    return _errBody(res, 'Failed to save replacement.');
+  }
+
+  static Future<bool> deleteReplacement(int userId, int id) async {
+    final res = await _client.delete(Uri.parse('$baseUrl/replacements/$id?userId=$userId'));
+    return res.statusCode == 200;
+  }
+
   // ── Stock Entry ──
   static Future<List<dynamic>> getStockSummary(int userId, {String? search}) async {
     final q = (search != null && search.isNotEmpty) ? '&search=${Uri.encodeQueryComponent(search)}' : '';
@@ -405,6 +815,13 @@ class ApiService {
         headers: {'Content-Type': 'application/json'}, body: jsonEncode(data));
     if (res.statusCode == 200) return {'success': true};
     return _errBody(res, 'Failed to add stock.');
+  }
+
+  static Future<Map<String, dynamic>> updateStock(int id, Map<String, dynamic> data) async {
+    final res = await _client.put(Uri.parse('$baseUrl/stock/$id'),
+        headers: {'Content-Type': 'application/json'}, body: jsonEncode(data));
+    if (res.statusCode == 200) return {'success': true};
+    return _errBody(res, 'Failed to update stock.');
   }
 
   static Future<bool> deleteStock(int userId, int id) async {

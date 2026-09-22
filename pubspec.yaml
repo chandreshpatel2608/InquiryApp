@@ -43,10 +43,12 @@ dependencies:
   speech_to_text: ^7.0.0
   pdf: ^3.11.1
   printing: ^5.13.3
+  razorpay_flutter: ^1.4.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_launcher_icons: ^0.14.4
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

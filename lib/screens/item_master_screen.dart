@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../services/api_service.dart';
 import '../config.dart';
 
-/// Item Master — add / edit / delete / list items (name + HSN number).
+/// Item Master - add / edit / delete / list items.
 class ItemMasterScreen extends StatefulWidget {
   final int userId;
   const ItemMasterScreen({super.key, required this.userId});
@@ -13,6 +15,7 @@ class ItemMasterScreen extends StatefulWidget {
 
 class _ItemMasterScreenState extends State<ItemMasterScreen> {
   List<dynamic> _items = [];
+  List<dynamic> _categories = [];
   bool _loading = true;
 
   @override
@@ -23,8 +26,17 @@ class _ItemMasterScreenState extends State<ItemMasterScreen> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    final data = await ApiService.getItems(widget.userId);
-    if (mounted) setState(() { _items = data; _loading = false; });
+    final results = await Future.wait([
+      ApiService.getItems(widget.userId),
+      ApiService.getCategories(widget.userId),
+    ]);
+    if (mounted) {
+      setState(() {
+        _items = results[0];
+        _categories = results[1];
+        _loading = false;
+      });
+    }
   }
 
   void _snack(String msg, {bool error = false}) {
@@ -38,6 +50,10 @@ class _ItemMasterScreenState extends State<ItemMasterScreen> {
   Future<void> _form({Map<String, dynamic>? existing}) async {
     final nameCtrl = TextEditingController(text: existing?['itemName'] ?? '');
     final hsnCtrl = TextEditingController(text: existing?['hsnNumber'] ?? '');
+    final modelCtrl = TextEditingController(text: existing?['modelNumber'] ?? '');
+    int? categoryId = existing?['categoryId'] as int?;
+    final existingImages = List<String>.from(existing?['imagePaths'] ?? const []);
+    final selectedImages = <File>[];
     bool saving = false;
 
     await showModalBottomSheet(
@@ -80,6 +96,58 @@ class _ItemMasterScreenState extends State<ItemMasterScreen> {
                   decoration: const InputDecoration(
                       labelText: 'HSN Number', border: OutlineInputBorder()),
                 ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: modelCtrl,
+                  decoration: const InputDecoration(
+                      labelText: 'Model Number', border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<int>(
+                  initialValue: categoryId,
+                  decoration: const InputDecoration(
+                      labelText: 'Category', border: OutlineInputBorder()),
+                  items: _categories.map<DropdownMenuItem<int>>((category) =>
+                    DropdownMenuItem<int>(
+                      value: category['id'] as int,
+                      child: Text(category['name']?.toString() ?? ''),
+                    )).toList(),
+                  onChanged: (value) => setModal(() => categoryId = value),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.add_photo_alternate_outlined),
+                  label: const Text('Select Product Photos'),
+                  onPressed: () async {
+                    final images = await ImagePicker().pickMultiImage(imageQuality: 82);
+                    if (images.isNotEmpty) {
+                      setModal(() => selectedImages.addAll(images.map((image) => File(image.path))));
+                    }
+                  },
+                ),
+                if (existingImages.isNotEmpty || selectedImages.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      ...existingImages.map((path) => Stack(children: [
+                        Image.network('${baseUrl.replaceAll('/digitalcard/api', '')}$path', width: 68, height: 68, fit: BoxFit.cover),
+                        Positioned(right: 0, child: InkWell(
+                          onTap: () => setModal(() => existingImages.remove(path)),
+                          child: const CircleAvatar(radius: 10, child: Icon(Icons.close, size: 14)),
+                        )),
+                      ])),
+                      ...selectedImages.map((file) => Stack(children: [
+                        Image.file(file, width: 68, height: 68, fit: BoxFit.cover),
+                        Positioned(right: 0, child: InkWell(
+                          onTap: () => setModal(() => selectedImages.remove(file)),
+                          child: const CircleAvatar(radius: 10, child: Icon(Icons.close, size: 14)),
+                        )),
+                      ])),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity,
@@ -96,10 +164,21 @@ class _ItemMasterScreenState extends State<ItemMasterScreen> {
                       }
                       setModal(() => saving = true);
                       final navigator = Navigator.of(ctx);
+                      final uploaded = selectedImages.isEmpty
+                          ? <String>[]
+                          : await ApiService.uploadItemImages(widget.userId, selectedImages);
+                      if (selectedImages.isNotEmpty && uploaded.length != selectedImages.length) {
+                        setModal(() => saving = false);
+                        _snack('One or more photos could not be uploaded', error: true);
+                        return;
+                      }
                       final result = await ApiService.saveItem({
                         'userId': widget.userId,
                         'itemName': nameCtrl.text.trim(),
                         'hsnNumber': hsnCtrl.text.trim(),
+                        'modelNumber': modelCtrl.text.trim(),
+                        'categoryId': categoryId,
+                        'imagePaths': [...existingImages, ...uploaded],
                       }, id: existing?['id']);
                       if (!mounted) return;
                       if (result['success'] == true) {
@@ -172,8 +251,9 @@ class _ItemMasterScreenState extends State<ItemMasterScreen> {
                           title: Text(it['itemName'] ?? '',
                               style: const TextStyle(fontWeight: FontWeight.w600)),
                           subtitle: (it['hsnNumber'] ?? '').toString().isNotEmpty
-                              ? Text('HSN: ${it['hsnNumber']}')
-                              : null,
+                              ? Text('HSN: ${it['hsnNumber']}  •  ${it['modelNumber'] ?? ''}\n${it['categoryName'] ?? ''}')
+                              : Text([it['modelNumber'], it['categoryName']]
+                                .where((value) => (value ?? '').toString().isNotEmpty).join('  •  ')),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [

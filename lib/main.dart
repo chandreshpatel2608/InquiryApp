@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'config.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
+import 'services/api_service.dart';
 
 void main() {
   runApp(const DukanSmartApp());
@@ -53,11 +54,37 @@ class _SplashScreenState extends State<SplashScreen> {
 
     if (userData != null) {
       final user = jsonDecode(userData) as Map<String, dynamic>;
-      appLogoPath = user['logoPath'] as String?;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => HomeScreen(userData: user)),
-      );
+      final userId = user['userId'] as int?;
+
+      // Verify with server that user is still active + get fresh data
+      if (userId != null) {
+        final freshData = await ApiService.verifyUser(userId);
+        if (!mounted) return;
+
+        if (freshData == null) {
+          // User inactive or server unreachable — force re-login
+          await prefs.remove('saved_user');
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const LoginScreen()),
+          );
+          return;
+        }
+
+        // Update saved data with fresh info (logo, businessName, etc.)
+        await prefs.setString('saved_user', jsonEncode(freshData));
+        appLogoPath = freshData['logoPath'] as String?;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => HomeScreen(userData: freshData)),
+        );
+      } else {
+        await prefs.remove('saved_user');
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
+      }
     } else {
       Navigator.pushReplacement(
         context,
