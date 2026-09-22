@@ -1,0 +1,5 @@
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "C:/AI/python/rs/app/assets/logo.png"
+  min_sdk_android: 21
