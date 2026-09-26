@@ -26,12 +26,80 @@ class OperationsPdf {
   static Future<void> sharePackingList(
     Map<String, dynamic> packingList, {
     required String businessName,
+    String? boxNo,
   }) async {
-    final bytes = await _buildPackingList(packingList, businessName);
+    final bytes = await _buildPackingList(
+      packingList,
+      businessName,
+      boxNo: boxNo,
+    );
     await Printing.sharePdf(
       bytes: bytes,
       filename:
-          'Packing_List_${packingList['number'] ?? packingList['id']}.pdf',
+          'Packing_List_${packingList['number'] ?? packingList['id']}${boxNo == null ? '' : '_Box_$boxNo'}.pdf',
+    );
+  }
+
+  static Future<void> shareBoxPackingList(
+    Map<String, dynamic> packingList, {
+    required String businessName,
+    required String boxNo,
+  }) async {
+    final bytes = await _buildPackingList(
+      packingList,
+      businessName,
+      boxNo: boxNo,
+    );
+    await Printing.sharePdf(
+      bytes: bytes,
+      filename:
+          'Packing_List_${packingList['number'] ?? packingList['id']}_Box_$boxNo.pdf',
+    );
+  }
+
+  static Future<void> shareOrder(
+    Map<String, dynamic> order, {
+    required String businessName,
+  }) async {
+    final document = pw.Document();
+    final items = List<dynamic>.from(order['items'] ?? const []);
+    document.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        build: (_) => [
+          pw.Text(businessName, style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
+          pw.Text('ORDER', style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold)),
+          pw.SizedBox(height: 12),
+          pw.TableHelper.fromTextArray(
+            border: null,
+            data: [
+              ['Order ID', order['orderNumber'] ?? ''],
+              ['Order Date', _date(order['orderDate'])],
+              ['Customer', order['customerName'] ?? ''],
+              ['Contact', order['contactNumber'] ?? ''],
+              ['Address', order['address'] ?? ''],
+              ['Payment', order['paymentOption'] ?? 'Cash'],
+              if ((order['remark'] ?? '').toString().trim().isNotEmpty)
+                ['Remark', order['remark'] ?? ''],
+            ],
+          ),
+          pw.SizedBox(height: 16),
+          pw.TableHelper.fromTextArray(
+            headers: const ['Item', 'Qty', 'Price', 'Amount'],
+            data: items.map((item) {
+              final qty = double.tryParse('${item['qty']}') ?? 0;
+              final price = double.tryParse('${item['price']}') ?? 0;
+              return [item['item']?.toString() ?? '', '$qty', '₹${price.toStringAsFixed(2)}', '₹${(qty * price).toStringAsFixed(2)}'];
+            }).toList(),
+          ),
+          pw.SizedBox(height: 12),
+          pw.Align(alignment: pw.Alignment.centerRight, child: pw.Text('Total: ₹${order['totalAmount'] ?? 0}')),
+        ],
+      ),
+    );
+    await Printing.sharePdf(
+      bytes: await document.save(),
+      filename: 'Order_${order['orderNumber'] ?? order['id']}.pdf',
     );
   }
 

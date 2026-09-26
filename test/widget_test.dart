@@ -6,12 +6,16 @@
 // tree, read text, and verify that the values of widget properties are correct.
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:dukan_smart/main.dart';
 
 void main() {
   testWidgets('App launches smoke test', (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(const DukanSmartApp());
-    expect(find.text('DukanSmart'), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.text('Welcome'), findsOneWidget);
+    expect(find.text('Login with your credentials'), findsOneWidget);
   });
 }

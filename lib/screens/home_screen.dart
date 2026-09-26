@@ -22,6 +22,7 @@ import 'sales_entry_screen.dart';
 import 'ledger_screen.dart';
 import 'supplier_ledger_screen.dart';
 import 'packing_list_screen.dart';
+import 'order_screen.dart';
 import 'transporter_master_screen.dart';
 import 'replacement_screen.dart';
 import '../config.dart';
@@ -155,6 +156,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   const Divider(height: 1),
                   if (_showOperations) ...[
                     _sectionHeader('OPERATIONS'),
+                    _drawerItem(Icons.receipt_long_outlined, 'Orders', () {
+                      Navigator.pop(context);
+                      _navigateTo(
+                        OrderScreen(
+                          userId: _userId,
+                          businessName: _businessName,
+                        ),
+                      );
+                    }),
                     _drawerItem(Icons.inventory, 'Packing List', () {
                       Navigator.pop(context);
                       _navigateTo(
@@ -424,6 +434,17 @@ class _HomeScreenState extends State<HomeScreen> {
               if (_showOperations) ...[
                 _moduleTitle('Operations'),
                 _featureGrid([
+                  _FeatureItem(
+                    Icons.receipt_long,
+                    'Orders',
+                    Colors.teal,
+                    () => _navigateTo(
+                      OrderScreen(
+                        userId: _userId,
+                        businessName: _businessName,
+                      ),
+                    ),
+                  ),
                   _FeatureItem(
                     Icons.inventory,
                     'Packing\nList',

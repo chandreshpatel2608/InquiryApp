@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../config.dart';
 import '../services/api_service.dart';
 import '../services/operations_pdf.dart';
+import '../widgets/searchable_dropdown.dart';
 
 class ReplacementScreen extends StatefulWidget {
   final int userId;
@@ -93,17 +94,39 @@ class _ReplacementScreenState extends State<ReplacementScreen> {
                 itemBuilder: (_, index) {
                   final record = Map<String, dynamic>.from(_records[index]);
                   return Card(
-                    child: ListTile(
-                      leading: const CircleAvatar(
-                        child: Icon(Icons.swap_horiz),
-                      ),
-                      title: Text(record['customerName']?.toString() ?? ''),
-                      subtitle: Text(
-                        'Invoice: ${record['invoiceNo'] ?? ''}\n${record['date'] ?? ''}  |  ${record['totalParcel'] ?? 0} parcel(s)',
-                      ),
-                      isThreeLine: true,
-                      trailing: Wrap(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 8, 4),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Padding(
+                                padding: EdgeInsets.only(top: 2, right: 10),
+                                child: CircleAvatar(
+                                  child: Icon(Icons.swap_horiz),
+                                ),
+                              ),
+                              Expanded(
+                                child: Text(
+                                  record['customerName']?.toString() ?? '',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.titleMedium,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Invoice: ${record['invoiceNo'] ?? ''}\n${record['date'] ?? ''}  |  ${record['totalParcel'] ?? 0} parcel(s)',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Wrap(
+                            alignment: WrapAlignment.end,
+                            children: [
                           IconButton(
                             tooltip: 'Edit Replacement',
                             icon: const Icon(Icons.edit_outlined),
@@ -120,6 +143,8 @@ class _ReplacementScreenState extends State<ReplacementScreen> {
                               icon: const Icon(Icons.delete_outline, color: Colors.red),
                               onPressed: () => _delete(record['id'] as int),
                             ),
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -149,7 +174,7 @@ class _ReplacementFormState extends State<_ReplacementForm> {
   final _rows = <_ReplacementRow>[_ReplacementRow()];
   List<dynamic> _customers = [];
   List<dynamic> _transports = [];
-  List<dynamic> _items = [];
+  List<dynamic> _products = [];
   int? _customerId;
   int? _transportId;
   DateTime _date = DateTime.now();
@@ -172,8 +197,8 @@ class _ReplacementFormState extends State<_ReplacementForm> {
       final rows = (existing['items'] as List?) ?? const [];
       for (final item in rows) {
         final row = _ReplacementRow()
-          ..itemId = item['itemId'] as int?
-          ..itemName = item['item']?.toString() ?? ''
+          ..productId = (item['productId'] ?? item['itemId']) as int?
+          ..productName = item['item']?.toString() ?? ''
           ..status = item['status']?.toString() ?? 'pending';
         row.qty.text = item['qty']?.toString() ?? '1';
         _rows.add(row);
@@ -187,13 +212,13 @@ class _ReplacementFormState extends State<_ReplacementForm> {
     final values = await Future.wait([
       ApiService.getCustomers(widget.userId),
       ApiService.getTransports(widget.userId),
-      ApiService.getItems(widget.userId),
+      ApiService.getProducts(widget.userId),
     ]);
     if (!mounted) return;
     setState(() {
       _customers = values[0];
       _transports = values[1];
-      _items = values[2];
+      _products = values[2];
       _loading = false;
     });
   }
@@ -263,20 +288,25 @@ class _ReplacementFormState extends State<_ReplacementForm> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  DropdownButtonFormField<int>(
-                    initialValue: _customerId,
-                    decoration: const InputDecoration(labelText: 'Customer *'),
+                  SearchableDropdown<Map<String, dynamic>>(
                     items: _customers
-                        .map<DropdownMenuItem<int>>(
-                          (customer) => DropdownMenuItem(
-                            value: customer['id'] as int,
-                            child: Text(customer['name']?.toString() ?? ''),
-                          ),
+                        .map<Map<String, dynamic>>(
+                          (customer) => Map<String, dynamic>.from(customer),
                         )
                         .toList(),
-                    onChanged: (value) => setState(() => _customerId = value),
-                    validator: (value) =>
-                        value == null ? 'Select a customer' : null,
+                    initialValue: _customerId == null
+                        ? null
+                        : _customers
+                            .cast<Map<String, dynamic>>()
+                            .where((customer) => customer['id'] == _customerId)
+                            .firstOrNull,
+                    itemLabel: (customer) =>
+                        customer['name']?.toString() ?? '',
+                    labelText: 'Customer *',
+                    onChanged: (customer) =>
+                        setState(() => _customerId = customer?['id'] as int?),
+                    validator: (customer) =>
+                        customer == null ? 'Select a customer' : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
@@ -309,20 +339,26 @@ class _ReplacementFormState extends State<_ReplacementForm> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  DropdownButtonFormField<int>(
-                    initialValue: _transportId,
-                    decoration: const InputDecoration(
-                      labelText: 'Courier Name',
-                    ),
+                  SearchableDropdown<Map<String, dynamic>>(
                     items: _transports
-                        .map<DropdownMenuItem<int>>(
-                          (transport) => DropdownMenuItem(
-                            value: transport['id'] as int,
-                            child: Text(transport['name']?.toString() ?? ''),
-                          ),
+                        .map<Map<String, dynamic>>(
+                          (transport) => Map<String, dynamic>.from(transport),
                         )
                         .toList(),
-                    onChanged: (value) => setState(() => _transportId = value),
+                    initialValue: _transportId == null
+                        ? null
+                        : _transports
+                            .cast<Map<String, dynamic>>()
+                            .where(
+                              (transport) =>
+                                  transport['id'] == _transportId,
+                            )
+                            .firstOrNull,
+                    itemLabel: (transport) =>
+                        transport['name']?.toString() ?? '',
+                    labelText: 'Courier Name',
+                    onChanged: (transport) =>
+                        setState(() => _transportId = transport?['id'] as int?),
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
@@ -391,27 +427,28 @@ class _ReplacementFormState extends State<_ReplacementForm> {
                   ),
               ],
             ),
-            DropdownButtonFormField<int>(
-              initialValue: row.itemId,
-              decoration: const InputDecoration(labelText: 'Item *'),
-              items: _items
-                  .map<DropdownMenuItem<int>>(
-                    (item) => DropdownMenuItem(
-                      value: item['id'] as int,
-                      child: Text(item['itemName']?.toString() ?? ''),
-                    ),
+            SearchableDropdown<Map<String, dynamic>>(
+              items: _products
+                  .map<Map<String, dynamic>>(
+                    (product) => Map<String, dynamic>.from(product),
                   )
                   .toList(),
-              onChanged: (value) {
-                final item = _items.firstWhere(
-                  (candidate) => candidate['id'] == value,
-                );
+              initialValue: row.productId == null
+                  ? null
+                  : _products
+                      .cast<Map<String, dynamic>>()
+                      .where((product) => product['id'] == row.productId)
+                      .firstOrNull,
+              itemLabel: (product) => product['name']?.toString() ?? '',
+              labelText: 'Product *',
+              onChanged: (product) {
                 setState(() {
-                  row.itemId = value;
-                  row.itemName = item['itemName']?.toString() ?? '';
+                  row.productId = product?['id'] as int?;
+                  row.productName = product?['name']?.toString() ?? '';
                 });
               },
-              validator: (value) => value == null ? 'Select an item' : null,
+              validator: (product) =>
+                  product == null ? 'Select a product' : null,
             ),
             const SizedBox(height: 10),
             TextFormField(
@@ -447,14 +484,14 @@ class _ReplacementFormState extends State<_ReplacementForm> {
 }
 
 class _ReplacementRow {
-  int? itemId;
-  String itemName = '';
+  int? productId;
+  String productName = '';
   final qty = TextEditingController(text: '1');
   String status = 'pending';
 
   Map<String, dynamic> toJson() => {
-    'itemId': itemId,
-    'item': itemName,
+    'productId': productId,
+    'item': productName,
     'qty': double.tryParse(qty.text) ?? 0,
     'status': status,
   };

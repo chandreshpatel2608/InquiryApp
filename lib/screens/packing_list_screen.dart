@@ -139,45 +139,78 @@ class _PackingListScreenState extends State<PackingListScreen> {
                   }).toList();
                   final record = Map<String, dynamic>.from(visible[index - 1]);
                   return Card(
-                    child: ListTile(
-                      leading: const CircleAvatar(child: Icon(Icons.inventory)),
-                      title: Text(record['customerName']?.toString() ?? ''),
-                      subtitle: Text(
-                        '${record['number'] ?? ''}  |  ${record['date'] ?? ''}\nLR: ${record['lrNumber'] ?? '-'}  |  ${(record['items'] as List?)?.length ?? 0} item(s)',
-                      ),
-                      isThreeLine: true,
-                      trailing: Wrap(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 10, 8, 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          IconButton(
-                            tooltip: 'Edit Packing List',
-                            icon: const Icon(Icons.edit_outlined),
-                            onPressed: () => _openForm(record),
-                          ),
-                          IconButton(
-                            tooltip: 'Print PDF',
-                            icon: const Icon(Icons.print_outlined),
-                            onPressed: () => _printPackingList(record),
-                          ),
-                          IconButton(
-                            tooltip: 'Send PDF to WhatsApp',
-                            icon: const Icon(
-                              Icons.share_outlined,
-                              color: Colors.green,
-                            ),
-                            onPressed: () => OperationsPdf.sharePackingList(
-                              record,
-                              businessName: widget.businessName,
-                            ),
-                          ),
-                          if (widget.canDelete)
-                            IconButton(
-                              tooltip: 'Delete Packing List',
-                              icon: const Icon(
-                                Icons.delete_outline,
-                                color: Colors.red,
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Padding(
+                                padding: EdgeInsets.only(top: 2, right: 10),
+                                child: Icon(Icons.inventory_2_outlined),
                               ),
-                              onPressed: () => _delete(record['id'] as int),
-                            ),
+                              Expanded(
+                                child: Text(
+                                  record['customerName']?.toString() ?? '',
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.titleMedium,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${record['number'] ?? ''}  |  ${record['date'] ?? ''}\nLR: ${record['lrNumber'] ?? '-'}  |  ${(record['items'] as List?)?.length ?? 0} item(s)',
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              IconButton(
+                                tooltip: 'Edit Packing List',
+                                icon: const Icon(Icons.edit_outlined, size: 20),
+                                visualDensity: VisualDensity.compact,
+                                onPressed: () => _openForm(record),
+                              ),
+                              IconButton(
+                                tooltip: 'Share selected box PDF (4 x 6)',
+                                icon: const Icon(
+                                  Icons.print_outlined,
+                                  size: 20,
+                                ),
+                                visualDensity: VisualDensity.compact,
+                                onPressed: () => _shareBoxPackingList(record),
+                              ),
+                              IconButton(
+                                tooltip: 'Share packing-wise PDF',
+                                icon: const Icon(
+                                  Icons.share_outlined,
+                                  size: 20,
+                                ),
+                                visualDensity: VisualDensity.compact,
+                                onPressed: () => OperationsPdf.sharePackingList(
+                                  record,
+                                  businessName: widget.businessName,
+                                ),
+                              ),
+                              if (widget.canDelete)
+                                IconButton(
+                                  tooltip: 'Delete Packing List',
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                    size: 20,
+                                    color: Colors.red,
+                                  ),
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: () => _delete(record['id'] as int),
+                                ),
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -188,7 +221,7 @@ class _PackingListScreenState extends State<PackingListScreen> {
     );
   }
 
-  Future<void> _printPackingList(Map<String, dynamic> record) async {
+  Future<void> _shareBoxPackingList(Map<String, dynamic> record) async {
     final boxNumbers =
         ((record['items'] as List?) ?? const [])
             .map((item) => (item['boxNo'] ?? '').toString().trim())
@@ -197,44 +230,74 @@ class _PackingListScreenState extends State<PackingListScreen> {
             .toList()
           ..sort((a, b) => a.compareTo(b));
 
-    String? selectedBox;
-    if (boxNumbers.isNotEmpty) {
-      selectedBox = await showDialog<String?>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Print packing list'),
-          content: DropdownButtonFormField<String?>(
-            initialValue: null,
+    if (boxNumbers.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No box number is available for this list.'),
+          ),
+        );
+      }
+      return;
+    }
+
+    String selectedBox = boxNumbers.first;
+    final confirmedBox = await showDialog<String?>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Share selected box PDF'),
+          content: DropdownButtonFormField<String>(
+            initialValue: selectedBox,
             decoration: const InputDecoration(labelText: 'Box number'),
-            items: [
-              const DropdownMenuItem<String?>(
-                value: null,
-                child: Text('All Boxes'),
-              ),
-              ...boxNumbers.map(
-                (box) => DropdownMenuItem<String?>(
-                  value: box,
-                  child: Text('Box $box'),
-                ),
-              ),
-            ],
-            onChanged: (value) => Navigator.pop(dialogContext, value),
+            items: boxNumbers
+                .map(
+                  (box) => DropdownMenuItem<String>(
+                    value: box,
+                    child: Text('Box $box'),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) {
+              if (value != null) {
+                setDialogState(() => selectedBox = value);
+              }
+            },
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(dialogContext, '__cancel__'),
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Cancel'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(dialogContext, selectedBox),
+              icon: const Icon(Icons.picture_as_pdf_outlined),
+              label: const Text('Share PDF'),
             ),
           ],
         ),
-      );
-      if (selectedBox == '__cancel__') return;
+      ),
+    );
+    if (confirmedBox == null) return;
+
+    final selectedItems = ((record['items'] as List?) ?? const [])
+        .where(
+          (item) => (item['boxNo'] ?? '').toString().trim() == confirmedBox,
+        )
+        .toList();
+    if (selectedItems.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No items were found in Box $confirmedBox.')),
+        );
+      }
+      return;
     }
 
-    await OperationsPdf.printPackingList(
-      record,
+    await OperationsPdf.shareBoxPackingList(
+      {...record, 'items': selectedItems},
       businessName: widget.businessName,
-      boxNo: selectedBox,
+      boxNo: confirmedBox,
     );
   }
 }
@@ -256,7 +319,7 @@ class _PackingListFormState extends State<_PackingListForm> {
   final _rows = <_PackingRow>[_PackingRow()];
   List<dynamic> _customers = [];
   List<dynamic> _transports = [];
-  List<dynamic> _items = [];
+  List<dynamic> _products = [];
   int? _customerId;
   int? _transportId;
   DateTime _date = DateTime.now();
@@ -277,8 +340,9 @@ class _PackingListFormState extends State<_PackingListForm> {
       if (parsedDate != null) _date = parsedDate;
       final rows = (existing['items'] as List?) ?? const [];
       for (final item in rows) {
-        final row = _PackingRow()..itemId = item['itemId'] as int?;
-        row.item.text = item['item']?.toString() ?? '';
+        final row = _PackingRow()
+          ..productId = (item['productId'] ?? item['itemId']) as int?;
+        row.productName.text = item['item']?.toString() ?? '';
         row.qty.text = item['qty']?.toString() ?? '1';
         row.box.text = item['boxNo']?.toString() ?? '';
         row.height.text = item['height']?.toString() ?? '';
@@ -296,13 +360,13 @@ class _PackingListFormState extends State<_PackingListForm> {
     final values = await Future.wait([
       ApiService.getCustomers(widget.userId),
       ApiService.getTransports(widget.userId),
-      ApiService.getItems(widget.userId),
+      ApiService.getProducts(widget.userId),
     ]);
     if (!mounted) return;
     setState(() {
       _customers = values[0];
       _transports = values[1];
-      _items = values[2];
+      _products = values[2];
       _loading = false;
     });
   }
@@ -510,26 +574,26 @@ class _PackingListFormState extends State<_PackingListForm> {
               ],
             ),
             SearchableDropdown<Map<String, dynamic>>(
-              items: _items
+              items: _products
                   .map<Map<String, dynamic>>(
-                    (item) => Map<String, dynamic>.from(item),
+                    (product) => Map<String, dynamic>.from(product),
                   )
                   .toList(),
-              initialValue: row.itemId == null
+              initialValue: row.productId == null
                   ? null
-                  : _items.firstWhere(
-                      (item) => item['id'] == row.itemId,
+                  : _products.firstWhere(
+                      (product) => product['id'] == row.productId,
                       orElse: () => null,
                     ),
-              itemLabel: (item) => item['itemName']?.toString() ?? '',
-              labelText: 'Item *',
-              onChanged: (item) {
+              itemLabel: (product) => product['name']?.toString() ?? '',
+              labelText: 'Product *',
+              onChanged: (product) {
                 setState(() {
-                  row.itemId = item?['id'] as int?;
-                  row.item.text = item?['itemName']?.toString() ?? '';
+                  row.productId = product?['id'] as int?;
+                  row.productName.text = product?['name']?.toString() ?? '';
                 });
               },
-              validator: (value) => value == null ? 'Select an item' : null,
+              validator: (value) => value == null ? 'Select a product' : null,
             ),
             const SizedBox(height: 10),
             TextFormField(
@@ -620,8 +684,8 @@ class _PackingListFormState extends State<_PackingListForm> {
 }
 
 class _PackingRow {
-  int? itemId;
-  final item = TextEditingController();
+  int? productId;
+  final productName = TextEditingController();
   final qty = TextEditingController(text: '1');
   final box = TextEditingController();
   final height = TextEditingController();
@@ -631,8 +695,8 @@ class _PackingRow {
   String? uploadPath;
 
   Map<String, dynamic> toJson() => {
-    'itemId': itemId,
-    'item': item.text.trim(),
+    'productId': productId,
+    'item': productName.text.trim(),
     'qty': double.tryParse(qty.text) ?? 0,
     'boxNo': box.text.trim(),
     'height': double.tryParse(height.text),
@@ -642,7 +706,7 @@ class _PackingRow {
   };
 
   void dispose() {
-    item.dispose();
+    productName.dispose();
     qty.dispose();
     box.dispose();
     height.dispose();

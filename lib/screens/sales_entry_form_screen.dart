@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import '../config.dart';
+import '../widgets/searchable_dropdown.dart';
 
 class _SaleLine {
   int? itemId;
@@ -179,18 +180,27 @@ class _SalesEntryFormScreenState extends State<SalesEntryFormScreen> {
               : ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    DropdownButtonFormField<int>(
-                      initialValue: _customerId,
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                          labelText: 'Customer *', border: OutlineInputBorder()),
+                    SearchableDropdown<Map<String, dynamic>>(
                       items: _customers
-                          .map<DropdownMenuItem<int>>((c) => DropdownMenuItem<int>(
-                                value: c['id'],
-                                child: Text(c['name'] ?? '', overflow: TextOverflow.ellipsis),
-                              ))
+                          .map<Map<String, dynamic>>(
+                            (customer) => Map<String, dynamic>.from(customer),
+                          )
                           .toList(),
-                      onChanged: (v) => setState(() => _customerId = v),
+                      initialValue: _customerId == null
+                          ? null
+                          : _customers
+                              .cast<Map<String, dynamic>>()
+                              .where(
+                                (customer) => customer['id'] == _customerId,
+                              )
+                              .firstOrNull,
+                      itemLabel: (customer) =>
+                          customer['name']?.toString() ?? '',
+                      labelText: 'Customer *',
+                      hintText: 'Type customer name',
+                      onChanged: (customer) => setState(
+                        () => _customerId = customer?['id'] as int?,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -287,6 +297,22 @@ class _SalesEntryFormScreenState extends State<SalesEntryFormScreen> {
   }
 
   Widget _buildLine(int index, _SaleLine line) {
+    final categoryOptions = <Map<String, dynamic>>[
+      {'id': 0, 'name': 'Other Products'},
+      ..._categories.map<Map<String, dynamic>>(
+        (category) => Map<String, dynamic>.from(category),
+      ),
+    ];
+    final productOptions = _products
+        .where(
+          (product) => line.categoryId == 0
+              ? product['categoryId'] == null
+              : product['categoryId'] == line.categoryId,
+        )
+        .map<Map<String, dynamic>>(
+          (product) => Map<String, dynamic>.from(product),
+        )
+        .toList();
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -297,20 +323,22 @@ class _SalesEntryFormScreenState extends State<SalesEntryFormScreen> {
             Row(
               children: [
                 Expanded(
-                  child: DropdownButtonFormField<int>(
-                    initialValue: line.categoryId,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                        labelText: 'Category', border: OutlineInputBorder(), isDense: true),
-                    items: [
-                      const DropdownMenuItem<int>(value: 0, child: Text('Other Products')),
-                      ..._categories.map<DropdownMenuItem<int>>((category) => DropdownMenuItem<int>(
-                            value: category['id'],
-                            child: Text(category['name'] ?? '', overflow: TextOverflow.ellipsis),
-                          )),
-                    ],
-                    onChanged: (v) => setState(() {
-                      line.categoryId = v;
+                  child: SearchableDropdown<Map<String, dynamic>>(
+                    items: categoryOptions,
+                    initialValue: line.categoryId == null
+                        ? null
+                        : categoryOptions
+                            .where(
+                              (category) =>
+                                  category['id'] == line.categoryId,
+                            )
+                            .firstOrNull,
+                    itemLabel: (category) =>
+                        category['name']?.toString() ?? '',
+                    labelText: 'Category',
+                    hintText: 'Type category name',
+                    onChanged: (category) => setState(() {
+                      line.categoryId = category?['id'] as int?;
                       line.itemId = null;
                     }),
                   ),
@@ -322,23 +350,21 @@ class _SalesEntryFormScreenState extends State<SalesEntryFormScreen> {
               ],
             ),
             const SizedBox(height: 8),
-            DropdownButtonFormField<int>(
-              initialValue: line.itemId,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Product', border: OutlineInputBorder(), isDense: true),
-              items: _products
-                .where((product) => line.categoryId == 0
-                  ? product['categoryId'] == null
-                  : product['categoryId'] == line.categoryId)
-                .map<DropdownMenuItem<int>>((product) => DropdownMenuItem<int>(
-                  value: product['id'],
-                  child: Text(product['name'] ?? '', overflow: TextOverflow.ellipsis),
-                  ))
-                .toList(),
-              onChanged: line.categoryId == null
-                ? null
-                : (v) => setState(() => line.itemId = v),
+            SearchableDropdown<Map<String, dynamic>>(
+              items: productOptions,
+              initialValue: line.itemId == null
+                  ? null
+                  : productOptions
+                      .where((product) => product['id'] == line.itemId)
+                      .firstOrNull,
+              itemLabel: (product) => product['name']?.toString() ?? '',
+              labelText: 'Product',
+              hintText: line.categoryId == null
+                  ? 'Select a category first'
+                  : 'Type product name',
+              enabled: line.categoryId != null,
+              onChanged: (product) =>
+                  setState(() => line.itemId = product?['id'] as int?),
             ),
             const SizedBox(height: 8),
             Row(
