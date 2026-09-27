@@ -14,6 +14,14 @@ analyzer:
     # Treat deprecation warnings as info (don't fail builds)
     deprecated_member_use: info
     deprecated_member_use_from_same_package: info
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
 
 linter:
   rules:

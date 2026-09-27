@@ -7,7 +7,7 @@ plugins {
 val brandedAppName =
     (project.findProperty("appName") as String?)
         ?: System.getenv("APP_NAME")
-        ?: "Dukan Smart"
+        ?: "Devalllp"
 
 android {
     namespace = "com.rudra.rudra_inquiry"

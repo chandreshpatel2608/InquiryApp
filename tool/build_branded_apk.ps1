@@ -35,7 +35,7 @@ if ($allowed -notcontains $ext) {
     throw "Logo must be one of: .png, .jpg, .jpeg, .webp"
 }
 
-$launcherConfigPath = Join-Path $projectRoot "flutter_launcher_icons-company.yaml"
+$launcherConfigPath = Join-Path $projectRoot "flutter_launcher_icons.yaml"
 $logoForYaml = $resolvedLogo.Path -replace "\\", "/"
 
 $yaml = @"
