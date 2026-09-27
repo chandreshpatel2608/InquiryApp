@@ -15,7 +15,10 @@ class _FollowupMasterScreenState extends State<FollowupMasterScreen> {
   DateTime? _fromDate;
   DateTime? _toDate;
   List<dynamic> _inquiries = [];
+  List<dynamic> _products = [];
+  int? _productId;
   bool _loading = true;
+  bool _loadingProducts = true;
 
   @override
   void initState() {
@@ -24,7 +27,18 @@ class _FollowupMasterScreenState extends State<FollowupMasterScreen> {
     final now = DateTime.now();
     _fromDate = DateTime(now.year, now.month, now.day);
     _toDate = DateTime(now.year, now.month, now.day);
+    _loadProducts();
     _loadData();
+  }
+
+  Future<void> _loadProducts() async {
+    final products = await ApiService.getProducts(widget.userId);
+    if (mounted) {
+      setState(() {
+        _products = products;
+        _loadingProducts = false;
+      });
+    }
   }
 
   Future<void> _loadData() async {
@@ -33,6 +47,7 @@ class _FollowupMasterScreenState extends State<FollowupMasterScreen> {
       widget.userId,
       fromDate: _fromDate?.toIso8601String().split('T')[0],
       toDate: _toDate?.toIso8601String().split('T')[0],
+      productId: _productId,
     );
     if (mounted) {
       setState(() {
@@ -45,7 +60,9 @@ class _FollowupMasterScreenState extends State<FollowupMasterScreen> {
   Future<void> _pickDate(bool isFrom) async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: isFrom ? (_fromDate ?? DateTime.now()) : (_toDate ?? DateTime.now()),
+      initialDate: isFrom
+          ? (_fromDate ?? DateTime.now())
+          : (_toDate ?? DateTime.now()),
       firstDate: DateTime(2020),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
@@ -71,9 +88,7 @@ class _FollowupMasterScreenState extends State<FollowupMasterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: appBarTitle('Followup Master'),
-      ),
+      appBar: AppBar(title: appBarTitle('Followup Master')),
       body: Column(
         children: [
           // Filter Row
@@ -90,15 +105,24 @@ class _FollowupMasterScreenState extends State<FollowupMasterScreen> {
                         labelText: 'From',
                         isDense: true,
                         border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 12,
+                        ),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
+                          const Icon(
+                            Icons.calendar_today,
+                            size: 16,
+                            color: Colors.grey,
+                          ),
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
-                              _fromDate != null ? _formatDate(_fromDate!.toIso8601String()) : 'All',
+                              _fromDate != null
+                                  ? _formatDate(_fromDate!.toIso8601String())
+                                  : 'All',
                               style: const TextStyle(fontSize: 13),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -118,15 +142,24 @@ class _FollowupMasterScreenState extends State<FollowupMasterScreen> {
                         labelText: 'To',
                         isDense: true,
                         border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 12,
+                        ),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
+                          const Icon(
+                            Icons.calendar_today,
+                            size: 16,
+                            color: Colors.grey,
+                          ),
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
-                              _toDate != null ? _formatDate(_toDate!.toIso8601String()) : 'All',
+                              _toDate != null
+                                  ? _formatDate(_toDate!.toIso8601String())
+                                  : 'All',
                               style: const TextStyle(fontSize: 13),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -142,7 +175,10 @@ class _FollowupMasterScreenState extends State<FollowupMasterScreen> {
                   icon: const Icon(Icons.today, color: Colors.blue),
                   tooltip: 'Reset to today',
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                  constraints: const BoxConstraints(
+                    minWidth: 36,
+                    minHeight: 36,
+                  ),
                   onPressed: () {
                     final now = DateTime.now();
                     setState(() {
@@ -151,6 +187,42 @@ class _FollowupMasterScreenState extends State<FollowupMasterScreen> {
                     });
                     _loadData();
                   },
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _loadingProducts
+                      ? const LinearProgressIndicator()
+                      : DropdownButtonFormField<int?>(
+                          initialValue:
+                              _products.any((p) => p['id'] == _productId)
+                              ? _productId
+                              : null,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Product',
+                            isDense: true,
+                            border: OutlineInputBorder(),
+                          ),
+                          items: [
+                            const DropdownMenuItem<int?>(
+                              value: null,
+                              child: Text('All products'),
+                            ),
+                            ..._products.map(
+                              (product) => DropdownMenuItem<int?>(
+                                value: product['id'] as int,
+                                child: Text(
+                                  product['name']?.toString() ?? '',
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                          ],
+                          onChanged: (value) {
+                            setState(() => _productId = value);
+                            _loadData();
+                          },
+                        ),
                 ),
               ],
             ),
@@ -161,12 +233,24 @@ class _FollowupMasterScreenState extends State<FollowupMasterScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
               children: [
-                Text('Pending: ${_inquiries.length}',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                Text(
+                  'Pending: ${_inquiries.length}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
                 const Spacer(),
-                const Icon(Icons.hourglass_empty, size: 16, color: Colors.orange),
+                const Icon(
+                  Icons.hourglass_empty,
+                  size: 16,
+                  color: Colors.orange,
+                ),
                 const SizedBox(width: 4),
-                const Text('Only Pending', style: TextStyle(fontSize: 12, color: Colors.orange)),
+                const Text(
+                  'Only Pending',
+                  style: TextStyle(fontSize: 12, color: Colors.orange),
+                ),
               ],
             ),
           ),
@@ -176,30 +260,32 @@ class _FollowupMasterScreenState extends State<FollowupMasterScreen> {
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _inquiries.isEmpty
-                    ? RefreshIndicator(
-                        onRefresh: _loadData,
-                        child: ListView(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          children: [
-                            SizedBox(
-                              height: MediaQuery.of(context).size.height * 0.5,
-                              child: Center(
-                                child: Text('No pending inquiries found.',
-                                    style: TextStyle(color: Colors.grey[500])),
-                              ),
+                ? RefreshIndicator(
+                    onRefresh: _loadData,
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        SizedBox(
+                          height: MediaQuery.of(context).size.height * 0.5,
+                          child: Center(
+                            child: Text(
+                              'No pending inquiries found.',
+                              style: TextStyle(color: Colors.grey[500]),
                             ),
-                          ],
+                          ),
                         ),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: _loadData,
-                        child: ListView.builder(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          itemCount: _inquiries.length,
-                          itemBuilder: (ctx, idx) => _buildCard(_inquiries[idx]),
-                        ),
-                      ),
+                      ],
+                    ),
+                  )
+                : RefreshIndicator(
+                    onRefresh: _loadData,
+                    child: ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      itemCount: _inquiries.length,
+                      itemBuilder: (ctx, idx) => _buildCard(_inquiries[idx]),
+                    ),
+                  ),
           ),
         ],
       ),
@@ -216,28 +302,52 @@ class _FollowupMasterScreenState extends State<FollowupMasterScreen> {
           backgroundColor: Colors.orange[50],
           child: const Icon(Icons.person, color: Colors.orange),
         ),
-        title: Text(inq['personName'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+        title: Text(
+          inq['personName'] ?? '',
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+        ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('📱 ${inq['mobile'] ?? '-'}', style: const TextStyle(fontSize: 12)),
+            Text(
+              '📱 ${inq['mobile'] ?? '-'}',
+              style: const TextStyle(fontSize: 12),
+            ),
             if (inq['brandName'] != null)
-              Text('Brand: ${inq['brandName']}', style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+              Text(
+                'Brand: ${inq['brandName']}',
+                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+              ),
             if (inq['categoryName'] != null)
-              Text('Category: ${inq['categoryName']}', style: TextStyle(fontSize: 11, color: Colors.grey[600])),
-            if (inq['description'] != null && (inq['description'] as String).isNotEmpty)
-              Text(inq['description'], style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+              Text(
+                'Category: ${inq['categoryName']}',
+                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+              ),
+            if (inq['description'] != null &&
+                (inq['description'] as String).isNotEmpty)
+              Text(
+                inq['description'],
+                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+              ),
           ],
         ),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text(_formatDate(inq['inquiryDate']),
-                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+            Text(
+              _formatDate(inq['inquiryDate']),
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+            ),
             if (inq['price'] != null)
-              Text('₹${(inq['price'] as num).toStringAsFixed(0)}',
-                  style: const TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.bold)),
+              Text(
+                '₹${(inq['price'] as num).toStringAsFixed(0)}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.green,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
           ],
         ),
       ),

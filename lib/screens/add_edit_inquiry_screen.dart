@@ -23,6 +23,7 @@ class _AddEditInquiryScreenState extends State<AddEditInquiryScreen> {
   String _status = 'pending';
   int? _brandId;
   int? _categoryId;
+  int? _productId;
   DateTime? _inquiryDate;
   DateTime? _dob;
   DateTime? _anniversary;
@@ -31,8 +32,10 @@ class _AddEditInquiryScreenState extends State<AddEditInquiryScreen> {
 
   List<dynamic> _brands = [];
   List<dynamic> _categories = [];
+  List<dynamic> _products = [];
   bool _loadingBrands = true;
   bool _loadingCategories = true;
+  bool _loadingProducts = true;
 
   bool get _isEdit => widget.inquiry != null;
 
@@ -47,12 +50,14 @@ class _AddEditInquiryScreenState extends State<AddEditInquiryScreen> {
     _mobileCtrl = TextEditingController(text: inq?['mobile'] ?? '');
     _emailCtrl = TextEditingController(text: inq?['email'] ?? '');
     _priceCtrl = TextEditingController(
-        text: inq?['price'] != null ? inq!['price'].toString() : '');
+      text: inq?['price'] != null ? inq!['price'].toString() : '',
+    );
     _descCtrl = TextEditingController(text: inq?['description'] ?? '');
     _paymentType = inq?['paymentType'] ?? 'cash';
     _status = inq?['status'] ?? 'pending';
     _brandId = inq?['brandId'];
     _categoryId = inq?['categoryId'];
+    _productId = inq?['productId'];
     if (inq?['inquiryDate'] != null) {
       _inquiryDate = DateTime.tryParse(inq!['inquiryDate']);
     }
@@ -68,23 +73,25 @@ class _AddEditInquiryScreenState extends State<AddEditInquiryScreen> {
     _initialSnapshot = _currentSnapshot();
     _loadBrands();
     _loadCategories();
+    _loadProducts();
   }
 
   /// Captures the current form state for change detection.
   Map<String, dynamic> _currentSnapshot() => {
-        'name': _nameCtrl.text.trim(),
-        'mobile': _mobileCtrl.text.trim(),
-        'email': _emailCtrl.text.trim(),
-        'price': _priceCtrl.text.trim(),
-        'desc': _descCtrl.text.trim(),
-        'payment': _paymentType,
-        'status': _status,
-        'brandId': _brandId,
-        'categoryId': _categoryId,
-        'inquiryDate': _inquiryDate?.toIso8601String(),
-        'dob': _dob?.toIso8601String(),
-        'anniversary': _anniversary?.toIso8601String(),
-      };
+    'name': _nameCtrl.text.trim(),
+    'mobile': _mobileCtrl.text.trim(),
+    'email': _emailCtrl.text.trim(),
+    'price': _priceCtrl.text.trim(),
+    'desc': _descCtrl.text.trim(),
+    'payment': _paymentType,
+    'status': _status,
+    'brandId': _brandId,
+    'categoryId': _categoryId,
+    'productId': _productId,
+    'inquiryDate': _inquiryDate?.toIso8601String(),
+    'dob': _dob?.toIso8601String(),
+    'anniversary': _anniversary?.toIso8601String(),
+  };
 
   /// True when the user has entered/changed data that has not been saved.
   bool get _hasUnsavedChanges {
@@ -102,9 +109,11 @@ class _AddEditInquiryScreenState extends State<AddEditInquiryScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Unsaved changes'),
-        content: Text(_isEdit
-            ? 'You have unsaved changes. Save them before leaving?'
-            : 'This inquiry has not been saved yet. Save it before leaving?'),
+        content: Text(
+          _isEdit
+              ? 'You have unsaved changes. Save them before leaving?'
+              : 'This inquiry has not been saved yet. Save it before leaving?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, 'cancel'),
@@ -132,7 +141,6 @@ class _AddEditInquiryScreenState extends State<AddEditInquiryScreen> {
     // 'cancel'/null: stay on the screen.
   }
 
-
   Future<void> _loadBrands() async {
     final brands = await ApiService.getBrands(widget.userId);
     if (mounted) {
@@ -153,12 +161,22 @@ class _AddEditInquiryScreenState extends State<AddEditInquiryScreen> {
     }
   }
 
+  Future<void> _loadProducts() async {
+    final products = await ApiService.getProducts(widget.userId);
+    if (mounted) {
+      setState(() {
+        _products = products;
+        _loadingProducts = false;
+      });
+    }
+  }
+
   Future<void> _pickDate(String field) async {
     final initial = field == 'inquiry'
         ? _inquiryDate
         : field == 'dob'
-            ? _dob
-            : _anniversary;
+        ? _dob
+        : _anniversary;
     final picked = await showDatePicker(
       context: context,
       initialDate: initial ?? DateTime.now(),
@@ -206,9 +224,12 @@ class _AddEditInquiryScreenState extends State<AddEditInquiryScreen> {
       'userId': widget.userId,
       'personName': _nameCtrl.text.trim(),
       'mobile': _mobileCtrl.text.trim(),
-      'email': _emailCtrl.text.trim().isNotEmpty ? _emailCtrl.text.trim() : null,
+      'email': _emailCtrl.text.trim().isNotEmpty
+          ? _emailCtrl.text.trim()
+          : null,
       'brandId': _brandId,
       'categoryId': _categoryId,
+      'productId': _productId,
       'inquiryDate': _inquiryDate?.toIso8601String(),
       'price': _priceCtrl.text.trim().isNotEmpty
           ? double.tryParse(_priceCtrl.text.trim())
@@ -244,8 +265,9 @@ class _AddEditInquiryScreenState extends State<AddEditInquiryScreen> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text(errorMsg ?? 'Failed to save. Try again.'),
-              backgroundColor: Colors.red),
+            content: Text(errorMsg ?? 'Failed to save. Try again.'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -270,276 +292,372 @@ class _AddEditInquiryScreenState extends State<AddEditInquiryScreen> {
         ),
         body: SafeArea(
           child: SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(
-            20,
-            20,
-            20,
-            // Extra bottom padding so the Save button is never clipped by the
-            // device's system navigation bar / home indicator or the keyboard.
-            20 + MediaQuery.of(context).viewInsets.bottom,
-          ),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-              // Person Name
-              TextFormField(
-                controller: _nameCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Person Name *',
-                  prefixIcon: Icon(Icons.person_outline),
-                ),
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Required' : null,
-              ),
-              const SizedBox(height: 16),
+            padding: EdgeInsets.fromLTRB(
+              20,
+              20,
+              20,
+              // Extra bottom padding so the Save button is never clipped by the
+              // device's system navigation bar / home indicator or the keyboard.
+              20 + MediaQuery.of(context).viewInsets.bottom,
+            ),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Person Name
+                  TextFormField(
+                    controller: _nameCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Person Name *',
+                      prefixIcon: Icon(Icons.person_outline),
+                    ),
+                    validator: (v) =>
+                        (v == null || v.trim().isEmpty) ? 'Required' : null,
+                  ),
+                  const SizedBox(height: 16),
 
-              // Mobile
-              TextFormField(
-                controller: _mobileCtrl,
-                keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(
-                  labelText: 'Mobile No *',
-                  prefixIcon: Icon(Icons.phone),
-                ),
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Required' : null,
-              ),
-              const SizedBox(height: 16),
+                  // Mobile
+                  TextFormField(
+                    controller: _mobileCtrl,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                      labelText: 'Mobile No *',
+                      prefixIcon: Icon(Icons.phone),
+                    ),
+                    validator: (v) =>
+                        (v == null || v.trim().isEmpty) ? 'Required' : null,
+                  ),
+                  const SizedBox(height: 16),
 
-              // Brand - Searchable
-              _loadingBrands
-                  ? const LinearProgressIndicator()
-                  : Autocomplete<Map<String, dynamic>>(
-                      initialValue: _brandId != null
-                          ? TextEditingValue(text: _brands.firstWhere(
-                              (b) => b['id'] == _brandId,
-                              orElse: () => {'name': ''})['name'] as String? ?? '')
-                          : TextEditingValue.empty,
-                      optionsBuilder: (textEditingValue) {
-                        if (textEditingValue.text.isEmpty) {
-                          return _brands.cast<Map<String, dynamic>>();
-                        }
-                        return _brands.cast<Map<String, dynamic>>().where((b) =>
-                            (b['name'] as String).toLowerCase().contains(textEditingValue.text.toLowerCase()));
-                      },
-                      displayStringForOption: (b) => b['name'] as String,
-                      fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-                        return TextFormField(
-                          controller: controller,
-                          focusNode: focusNode,
-                          decoration: const InputDecoration(
-                            labelText: 'Brand',
-                            prefixIcon: Icon(Icons.branding_watermark),
-                            hintText: 'Search brand...',
+                  // Brand - Searchable
+                  _loadingBrands
+                      ? const LinearProgressIndicator()
+                      : Autocomplete<Map<String, dynamic>>(
+                          initialValue: _brandId != null
+                              ? TextEditingValue(
+                                  text:
+                                      _brands.firstWhere(
+                                            (b) => b['id'] == _brandId,
+                                            orElse: () => {'name': ''},
+                                          )['name']
+                                          as String? ??
+                                      '',
+                                )
+                              : TextEditingValue.empty,
+                          optionsBuilder: (textEditingValue) {
+                            if (textEditingValue.text.isEmpty) {
+                              return _brands.cast<Map<String, dynamic>>();
+                            }
+                            return _brands.cast<Map<String, dynamic>>().where(
+                              (b) =>
+                                  (b['name'] as String).toLowerCase().contains(
+                                    textEditingValue.text.toLowerCase(),
+                                  ),
+                            );
+                          },
+                          displayStringForOption: (b) => b['name'] as String,
+                          fieldViewBuilder:
+                              (
+                                context,
+                                controller,
+                                focusNode,
+                                onFieldSubmitted,
+                              ) {
+                                return TextFormField(
+                                  controller: controller,
+                                  focusNode: focusNode,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Brand',
+                                    prefixIcon: Icon(Icons.branding_watermark),
+                                    hintText: 'Search brand...',
+                                  ),
+                                );
+                              },
+                          onSelected: (b) =>
+                              setState(() => _brandId = b['id'] as int),
+                        ),
+                  const SizedBox(height: 16),
+
+                  // Category - Searchable
+                  _loadingCategories
+                      ? const LinearProgressIndicator()
+                      : Autocomplete<Map<String, dynamic>>(
+                          initialValue: _categoryId != null
+                              ? TextEditingValue(
+                                  text:
+                                      _categories.firstWhere(
+                                            (c) => c['id'] == _categoryId,
+                                            orElse: () => {'name': ''},
+                                          )['name']
+                                          as String? ??
+                                      '',
+                                )
+                              : TextEditingValue.empty,
+                          optionsBuilder: (textEditingValue) {
+                            if (textEditingValue.text.isEmpty) {
+                              return _categories.cast<Map<String, dynamic>>();
+                            }
+                            return _categories
+                                .cast<Map<String, dynamic>>()
+                                .where(
+                                  (c) => (c['name'] as String)
+                                      .toLowerCase()
+                                      .contains(
+                                        textEditingValue.text.toLowerCase(),
+                                      ),
+                                );
+                          },
+                          displayStringForOption: (c) => c['name'] as String,
+                          fieldViewBuilder:
+                              (
+                                context,
+                                controller,
+                                focusNode,
+                                onFieldSubmitted,
+                              ) {
+                                return TextFormField(
+                                  controller: controller,
+                                  focusNode: focusNode,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Category',
+                                    prefixIcon: Icon(Icons.category),
+                                    hintText: 'Search category...',
+                                  ),
+                                );
+                              },
+                          onSelected: (c) =>
+                              setState(() => _categoryId = c['id'] as int),
+                        ),
+                  const SizedBox(height: 16),
+
+                  _loadingProducts
+                      ? const LinearProgressIndicator()
+                      : Autocomplete<Map<String, dynamic>>(
+                          initialValue: TextEditingValue(
+                            text: _products
+                                .where((p) => p['id'] == _productId)
+                                .map((p) => p['name']?.toString() ?? '')
+                                .firstOrNull ?? '',
                           ),
-                        );
-                      },
-                      onSelected: (b) => setState(() => _brandId = b['id'] as int),
-                    ),
-              const SizedBox(height: 16),
+                          optionsBuilder: (value) {
+                            final query = value.text.trim().toLowerCase();
+                            return _products.cast<Map<String, dynamic>>().where(
+                              (product) => query.isEmpty ||
+                                  (product['name']?.toString().toLowerCase() ?? '')
+                                      .contains(query),
+                            );
+                          },
+                          displayStringForOption: (product) =>
+                              product['name']?.toString() ?? '',
+                          fieldViewBuilder: (context, controller, focusNode, onSubmitted) =>
+                              TextFormField(
+                                controller: controller,
+                                focusNode: focusNode,
+                                decoration: const InputDecoration(
+                                  labelText: 'Product',
+                                  prefixIcon: Icon(Icons.inventory_2_outlined),
+                                  hintText: 'Search product...',
+                                ),
+                              ),
+                          onSelected: (product) =>
+                              setState(() => _productId = product['id'] as int),
+                        ),
+                  const SizedBox(height: 16),
 
-              // Category - Searchable
-              _loadingCategories
-                  ? const LinearProgressIndicator()
-                  : Autocomplete<Map<String, dynamic>>(
-                      initialValue: _categoryId != null
-                          ? TextEditingValue(text: _categories.firstWhere(
-                              (c) => c['id'] == _categoryId,
-                              orElse: () => {'name': ''})['name'] as String? ?? '')
-                          : TextEditingValue.empty,
-                      optionsBuilder: (textEditingValue) {
-                        if (textEditingValue.text.isEmpty) {
-                          return _categories.cast<Map<String, dynamic>>();
-                        }
-                        return _categories.cast<Map<String, dynamic>>().where((c) =>
-                            (c['name'] as String).toLowerCase().contains(textEditingValue.text.toLowerCase()));
-                      },
-                      displayStringForOption: (c) => c['name'] as String,
-                      fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-                        return TextFormField(
-                          controller: controller,
-                          focusNode: focusNode,
-                          decoration: const InputDecoration(
-                            labelText: 'Category',
-                            prefixIcon: Icon(Icons.category),
-                            hintText: 'Search category...',
+                  // Inquiry Date
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.calendar_month),
+                    title: const Text('Inquiry Date'),
+                    subtitle: Text(_formatDate(_inquiryDate)),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.calendar_today),
+                          onPressed: () => _pickDate('inquiry'),
+                        ),
+                        if (_inquiryDate != null)
+                          IconButton(
+                            icon: Icon(Icons.clear, color: Colors.red[300]),
+                            onPressed: () =>
+                                setState(() => _inquiryDate = null),
                           ),
-                        );
-                      },
-                      onSelected: (c) => setState(() => _categoryId = c['id'] as int),
+                      ],
                     ),
-              const SizedBox(height: 16),
+                  ),
 
-              // Inquiry Date
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.calendar_month),
-                title: const Text('Inquiry Date'),
-                subtitle: Text(_formatDate(_inquiryDate)),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.calendar_today),
-                      onPressed: () => _pickDate('inquiry'),
+                  // Price
+                  TextFormField(
+                    controller: _priceCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
                     ),
-                    if (_inquiryDate != null)
-                      IconButton(
-                        icon: Icon(Icons.clear, color: Colors.red[300]),
-                        onPressed: () =>
-                            setState(() => _inquiryDate = null),
+                    decoration: const InputDecoration(
+                      labelText: 'Price (₹)',
+                      prefixIcon: Icon(Icons.currency_rupee),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Status
+                  const Text(
+                    'Status',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: SegmentedButton<String>(
+                      segments: const [
+                        ButtonSegment(
+                          value: 'pending',
+                          label: Text(
+                            'Pending',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                          icon: Icon(Icons.hourglass_empty, size: 18),
+                        ),
+                        ButtonSegment(
+                          value: 'close',
+                          label: Text('Close', style: TextStyle(fontSize: 12)),
+                          icon: Icon(Icons.check_circle_outline, size: 18),
+                        ),
+                      ],
+                      selected: {_status},
+                      onSelectionChanged: (v) =>
+                          setState(() => _status = v.first),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Payment Type
+                  const Text(
+                    'Payment Type',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: SegmentedButton<String>(
+                      segments: const [
+                        ButtonSegment(
+                          value: 'cash',
+                          label: Text('Cash', style: TextStyle(fontSize: 12)),
+                          icon: Icon(Icons.money, size: 18),
+                        ),
+                        ButtonSegment(
+                          value: 'finance',
+                          label: Text(
+                            'Finance',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                          icon: Icon(Icons.account_balance, size: 18),
+                        ),
+                        ButtonSegment(
+                          value: 'card',
+                          label: Text('Card', style: TextStyle(fontSize: 12)),
+                          icon: Icon(Icons.credit_card, size: 18),
+                        ),
+                      ],
+                      selected: {_paymentType},
+                      onSelectionChanged: (v) =>
+                          setState(() => _paymentType = v.first),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Date of Birth
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.cake_outlined),
+                    title: const Text('Date of Birth'),
+                    subtitle: Text(_formatDate(_dob)),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.calendar_today),
+                          onPressed: () => _pickDate('dob'),
+                        ),
+                        if (_dob != null)
+                          IconButton(
+                            icon: Icon(Icons.clear, color: Colors.red[300]),
+                            onPressed: () => setState(() => _dob = null),
+                          ),
+                      ],
+                    ),
+                  ),
+
+                  // Anniversary Date
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.favorite_border),
+                    title: const Text('Anniversary Date'),
+                    subtitle: Text(_formatDate(_anniversary)),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.calendar_today),
+                          onPressed: () => _pickDate('anniversary'),
+                        ),
+                        if (_anniversary != null)
+                          IconButton(
+                            icon: Icon(Icons.clear, color: Colors.red[300]),
+                            onPressed: () =>
+                                setState(() => _anniversary = null),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Description
+                  TextFormField(
+                    controller: _descCtrl,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Description',
+                      prefixIcon: Icon(Icons.notes),
+                      alignLabelWithHint: true,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+
+                  // Save button
+                  FilledButton.icon(
+                    onPressed: _saving ? null : _save,
+                    icon: _saving
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.save),
+                    label: Text(
+                      _isEdit ? 'UPDATE INQUIRY' : 'SAVE INQUIRY',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
                       ),
-                  ],
-                ),
-              ),
-
-              // Price
-              TextFormField(
-                controller: _priceCtrl,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(
-                  labelText: 'Price (₹)',
-                  prefixIcon: Icon(Icons.currency_rupee),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Status
-              const Text('Status',
-                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(
-                        value: 'pending',
-                        label: Text('Pending', style: TextStyle(fontSize: 12)),
-                        icon: Icon(Icons.hourglass_empty, size: 18)),
-                    ButtonSegment(
-                        value: 'close',
-                        label: Text('Close', style: TextStyle(fontSize: 12)),
-                        icon: Icon(Icons.check_circle_outline, size: 18)),
-                  ],
-                  selected: {_status},
-                  onSelectionChanged: (v) =>
-                      setState(() => _status = v.first),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Payment Type
-              const Text('Payment Type',
-                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(
-                        value: 'cash',
-                        label: Text('Cash', style: TextStyle(fontSize: 12)),
-                        icon: Icon(Icons.money, size: 18)),
-                    ButtonSegment(
-                        value: 'finance',
-                        label: Text('Finance', style: TextStyle(fontSize: 12)),
-                        icon: Icon(Icons.account_balance, size: 18)),
-                    ButtonSegment(
-                        value: 'card',
-                        label: Text('Card', style: TextStyle(fontSize: 12)),
-                        icon: Icon(Icons.credit_card, size: 18)),
-                  ],
-                  selected: {_paymentType},
-                  onSelectionChanged: (v) =>
-                      setState(() => _paymentType = v.first),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Date of Birth
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.cake_outlined),
-                title: const Text('Date of Birth'),
-                subtitle: Text(_formatDate(_dob)),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.calendar_today),
-                      onPressed: () => _pickDate('dob'),
                     ),
-                    if (_dob != null)
-                      IconButton(
-                        icon: Icon(Icons.clear, color: Colors.red[300]),
-                        onPressed: () => setState(() => _dob = null),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
                       ),
-                  ],
-                ),
-              ),
-
-              // Anniversary Date
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.favorite_border),
-                title: const Text('Anniversary Date'),
-                subtitle: Text(_formatDate(_anniversary)),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.calendar_today),
-                      onPressed: () => _pickDate('anniversary'),
                     ),
-                    if (_anniversary != null)
-                      IconButton(
-                        icon: Icon(Icons.clear, color: Colors.red[300]),
-                        onPressed: () => setState(() => _anniversary = null),
-                      ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-
-              // Description
-              TextFormField(
-                controller: _descCtrl,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: 'Description',
-                  prefixIcon: Icon(Icons.notes),
-                  alignLabelWithHint: true,
-                ),
-              ),
-              const SizedBox(height: 28),
-
-              // Save button
-              FilledButton.icon(
-                onPressed: _saving ? null : _save,
-                icon: _saving
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.save),
-                label: Text(_isEdit ? 'UPDATE INQUIRY' : 'SAVE INQUIRY',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 15)),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
-      ),
-      ),
       ),
     );
   }

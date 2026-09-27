@@ -57,7 +57,7 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen> {
             left: 16,
             right: 16,
             top: 16,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + MediaQuery.of(ctx).padding.bottom + 24,
           ),
           child: SingleChildScrollView(
             child: Column(
@@ -96,9 +96,12 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen> {
                       labelText: 'Address', border: OutlineInputBorder()),
                 ),
                 const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
+                SafeArea(
+                  top: false,
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                    style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
                     icon: saving
                         ? const SizedBox(
                             width: 18,
@@ -135,6 +138,7 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen> {
                               _snack(result['error'] ?? 'Failed to save', error: true);
                             }
                           },
+                    ),
                   ),
                 ),
               ],

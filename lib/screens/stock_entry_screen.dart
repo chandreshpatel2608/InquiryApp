@@ -71,7 +71,7 @@ class _StockEntryScreenState extends State<StockEntryScreen>
       return;
     }
     int? categoryId = existing?['categoryId'] as int?;
-    int? productId = existing?['itemId'] as int?;
+    int? productId = (existing?['productId'] ?? existing?['itemId']) as int?;
     final qtyCtrl = TextEditingController();
     qtyCtrl.text = existing?['quantity']?.toString() ?? '';
     DateTime purchaseDate = DateTime.tryParse(existing?['purchaseDate']?.toString() ?? '') ?? DateTime.now();
@@ -118,6 +118,7 @@ class _StockEntryScreenState extends State<StockEntryScreen>
                   },
                   itemLabel: (item) => item['name']?.toString() ?? '',
                   labelText: 'Category *',
+                  hintText: 'Type category name',
                   onChanged: (value) => setModal(() {
                     categoryId = value?['id'] as int?;
                     productId = null;
@@ -139,6 +140,9 @@ class _StockEntryScreenState extends State<StockEntryScreen>
                           : Map<String, dynamic>.from(_products.firstWhere((item) => item['id'] == productId)),
                   itemLabel: (item) => item['name']?.toString() ?? '',
                   labelText: 'Product *',
+                    hintText: categoryId == null
+                      ? 'Select a category first'
+                      : 'Type product name',
                   enabled: categoryId != null,
                   onChanged: (value) => setModal(() => productId = value?['id'] as int?),
                   validator: (value) => value == null ? 'Select a product' : null,
@@ -200,7 +204,7 @@ class _StockEntryScreenState extends State<StockEntryScreen>
                       if (!mounted) return;
                       if (result['success'] == true) {
                         navigator.pop();
-                        _snack('Stock added!');
+                        _snack(existing == null ? 'Stock added!' : 'Stock updated!');
                         _load();
                       } else {
                         setModal(() => saving = false);

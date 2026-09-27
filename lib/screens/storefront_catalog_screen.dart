@@ -214,6 +214,36 @@ class _StorefrontCatalogScreenState extends State<StorefrontCatalogScreen> {
     );
   }
 
+  Future<void> _showCustomerProfile() async {
+    final customer = _customer;
+    if (customer == null) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Customer profile'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(customer['name']?.toString() ?? 'Customer'),
+            const SizedBox(height: 8),
+            Text('Mobile: ${customer['mobile'] ?? '-'}'),
+            if ((customer['email'] ?? '').toString().isNotEmpty)
+              Text('Email: ${customer['email']}'),
+            if ((customer['address'] ?? '').toString().isNotEmpty)
+              Text('Address: ${customer['address']}'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.cardProfileId == null || widget.cardProfileId! <= 0) {
@@ -275,6 +305,19 @@ class _StorefrontCatalogScreenState extends State<StorefrontCatalogScreen> {
                                     _customer?['name']?.toString() ??
                                         'Customer',
                                   ),
+                                ),
+                                ListTile(
+                                  leading: const Icon(
+                                    Icons.account_box_outlined,
+                                  ),
+                                  title: const Text('Profile'),
+                                  subtitle: Text(
+                                    '${_customer?['mobile'] ?? ''}${(_customer?['email'] ?? '').toString().isEmpty ? '' : '  |  ${_customer?['email']}'}',
+                                  ),
+                                  onTap: () {
+                                    Navigator.pop(sheetContext);
+                                    _showCustomerProfile();
+                                  },
                                 ),
                                 ListTile(
                                   leading: const Icon(
@@ -808,6 +851,7 @@ class _StorefrontCartScreenState extends State<StorefrontCartScreen> {
         await _askForReview();
         if (!mounted) return;
         Navigator.pop(context);
+        return;
       }
       await _load();
     } on ApiException catch (error) {
@@ -861,7 +905,10 @@ class _StorefrontCartScreenState extends State<StorefrontCartScreen> {
         'name': order['name'] ?? 'Payment',
         'prefill': {'contact': details.mobile, 'email': details.email},
       });
-      final ok = await completer.future;
+      final ok = await completer.future.timeout(
+        const Duration(minutes: 2),
+        onTimeout: () => false,
+      );
       razorpay.clear();
       if (!mounted) return;
       if (ok) {
@@ -978,6 +1025,7 @@ class _StorefrontCartScreenState extends State<StorefrontCartScreen> {
       ),
     );
     final comment = commentCtrl.text.trim();
+    commentCtrl.dispose();
     commentCtrl.dispose();
     if (submitted != true) return;
     try {
@@ -1542,14 +1590,16 @@ class _StorefrontOrdersScreenState extends State<StorefrontOrdersScreen> {
                     _orders[index] as Map,
                   );
                   final items = List<dynamic>.from(order['items'] ?? const []);
+                  final status = order['status']?.toString() ?? '';
+                  final statusLabel = status == 'Paid' ? 'Confirmed' : status;
                   final isPendingUpi =
                       order['paymentMethod'] == 'UPI' &&
-                      order['status'] == 'PaymentPending';
+                      status == 'PaymentPending';
                   final canEdit = !const [
                     'Shipped',
                     'Delivered',
                     'Cancelled',
-                  ].contains(order['status']?.toString());
+                  ].contains(status);
                   return Card(
                     child: Padding(
                       padding: const EdgeInsets.all(14),
@@ -1566,7 +1616,7 @@ class _StorefrontOrdersScreenState extends State<StorefrontOrdersScreen> {
                                   ),
                                 ),
                               ),
-                              Text(order['status']?.toString() ?? ''),
+                              Text(statusLabel),
                               if (canEdit)
                                 IconButton(
                                   visualDensity: VisualDensity.compact,

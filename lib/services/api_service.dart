@@ -26,7 +26,9 @@ class ApiService {
   static const _inquiriesCacheTTL = Duration(minutes: 2);
   // ── Login ──
   static Future<Map<String, dynamic>?> login(
-      String mobile, String password) async {
+    String mobile,
+    String password,
+  ) async {
     final res = await _client.post(
       Uri.parse('$baseUrl/login'),
       headers: {'Content-Type': 'application/json'},
@@ -63,7 +65,9 @@ class ApiService {
     return null;
   }
 
-  static Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> data) async {
+  static Future<Map<String, dynamic>> updateProfile(
+    Map<String, dynamic> data,
+  ) async {
     final res = await _client.put(
       Uri.parse('$baseUrl/profile'),
       headers: {'Content-Type': 'application/json'},
@@ -75,7 +79,9 @@ class ApiService {
 
   // ── Forgot Password ──
   static Future<Map<String, dynamic>> forgotPassword(
-      String mobile, String newPassword) async {
+    String mobile,
+    String newPassword,
+  ) async {
     final res = await _client.post(
       Uri.parse('$baseUrl/forgot-password'),
       headers: {'Content-Type': 'application/json'},
@@ -86,7 +92,10 @@ class ApiService {
 
   // ── Change Password ──
   static Future<Map<String, dynamic>> changePassword(
-      int userId, String oldPassword, String newPassword) async {
+    int userId,
+    String oldPassword,
+    String newPassword,
+  ) async {
     final res = await _client.post(
       Uri.parse('$baseUrl/change-password'),
       headers: {'Content-Type': 'application/json'},
@@ -103,15 +112,21 @@ class ApiService {
   // INQUIRIES
   // ═══════════════════════════════════════════════════════════════════
 
-  static Future<List<dynamic>> getInquiries(int userId, {bool forceRefresh = false}) async {
+  static Future<List<dynamic>> getInquiries(
+    int userId, {
+    bool forceRefresh = false,
+  }) async {
     // Return cached inquiries if fresh
     if (!forceRefresh &&
         _inquiriesCache.containsKey(userId) &&
         _inquiriesCacheTime.containsKey(userId) &&
-        DateTime.now().difference(_inquiriesCacheTime[userId]!) < _inquiriesCacheTTL) {
+        DateTime.now().difference(_inquiriesCacheTime[userId]!) <
+            _inquiriesCacheTTL) {
       return _inquiriesCache[userId]!;
     }
-    final res = await _client.get(Uri.parse('$baseUrl/inquiries?userId=$userId'));
+    final res = await _client.get(
+      Uri.parse('$baseUrl/inquiries?userId=$userId'),
+    );
     if (res.statusCode == 200) {
       final data = jsonDecode(res.body) as List<dynamic>;
       _inquiriesCache[userId] = data;
@@ -127,7 +142,9 @@ class ApiService {
     _inquiriesCacheTime.remove(userId);
   }
 
-  static Future<Map<String, dynamic>> createInquiry(Map<String, dynamic> data) async {
+  static Future<Map<String, dynamic>> createInquiry(
+    Map<String, dynamic> data,
+  ) async {
     final res = await _client.post(
       Uri.parse('$baseUrl/inquiries'),
       headers: {'Content-Type': 'application/json'},
@@ -169,12 +186,16 @@ class ApiService {
   // BRANDS (for inquiry dropdown)
   // ═══════════════════════════════════════════════════════════════════
 
-  static Future<List<dynamic>> getBrands(int userId, {bool forceRefresh = false}) async {
+  static Future<List<dynamic>> getBrands(
+    int userId, {
+    bool forceRefresh = false,
+  }) async {
     // Return cached brands if fresh
     if (!forceRefresh &&
         _brandsCache.containsKey(userId) &&
         _brandsCacheTime.containsKey(userId) &&
-        DateTime.now().difference(_brandsCacheTime[userId]!) < _brandsCacheTTL) {
+        DateTime.now().difference(_brandsCacheTime[userId]!) <
+            _brandsCacheTTL) {
       return _brandsCache[userId]!;
     }
     final res = await _client.get(Uri.parse('$baseUrl/brands?userId=$userId'));
@@ -195,14 +216,20 @@ class ApiService {
   static final Map<int, DateTime> _categoriesCacheTime = {};
   static const _categoriesCacheTTL = Duration(minutes: 10);
 
-  static Future<List<dynamic>> getCategories(int userId, {bool forceRefresh = false}) async {
+  static Future<List<dynamic>> getCategories(
+    int userId, {
+    bool forceRefresh = false,
+  }) async {
     if (!forceRefresh &&
         _categoriesCache.containsKey(userId) &&
         _categoriesCacheTime.containsKey(userId) &&
-        DateTime.now().difference(_categoriesCacheTime[userId]!) < _categoriesCacheTTL) {
+        DateTime.now().difference(_categoriesCacheTime[userId]!) <
+            _categoriesCacheTTL) {
       return _categoriesCache[userId]!;
     }
-    final res = await _client.get(Uri.parse('$baseUrl/categories?userId=$userId'));
+    final res = await _client.get(
+      Uri.parse('$baseUrl/categories?userId=$userId'),
+    );
     if (res.statusCode == 200) {
       final categories = jsonDecode(res.body) as List<dynamic>;
       _categoriesCache[userId] = categories;
@@ -217,7 +244,9 @@ class ApiService {
   // ═══════════════════════════════════════════════════════════════════
 
   static Future<Map<String, dynamic>?> getRoyaltyPoints(
-      int userId, String mobile) async {
+    int userId,
+    String mobile,
+  ) async {
     final res = await _client.get(
       Uri.parse('$baseUrl/royalty-points?userId=$userId&mobile=$mobile'),
     );
@@ -230,7 +259,9 @@ class ApiService {
   // ═══════════════════════════════════════════════════════════════════
 
   static Future<Map<String, dynamic>?> generateAiPost(
-      String category, String businessName) async {
+    String category,
+    String businessName,
+  ) async {
     final res = await _client.post(
       Uri.parse('$baseUrl/ai-post/generate'),
       headers: {'Content-Type': 'application/json'},
@@ -261,8 +292,9 @@ class ApiService {
   // ═══════════════════════════════════════════════════════════════════
 
   static Future<List<dynamic>> getScheduledStatuses(int userId) async {
-    final res = await _client
-        .get(Uri.parse('$baseUrl/scheduled-statuses?userId=$userId'));
+    final res = await _client.get(
+      Uri.parse('$baseUrl/scheduled-statuses?userId=$userId'),
+    );
     if (res.statusCode == 200) return jsonDecode(res.body);
     return [];
   }
@@ -306,14 +338,21 @@ class ApiService {
   /// Requests a branded ~60s festival video for this company + template.
   /// The server generates (and caches) it with ffmpeg, so the first call can
   /// take a while. Returns the relative video URL, or null on failure.
-  static Future<String?> getFestivalVideo(int userId, int templateId, {String? message}) async {
+  static Future<String?> getFestivalVideo(
+    int userId,
+    int templateId, {
+    String? message,
+  }) async {
     var url = '$baseUrl/festival-video?userId=$userId&templateId=$templateId';
     if (message != null && message.trim().isNotEmpty) {
       url += '&message=${Uri.encodeQueryComponent(message.trim())}';
     }
     final res = await _client
         .get(Uri.parse(url))
-        .timeout(const Duration(minutes: 5), onTimeout: () => http.Response('', 504));
+        .timeout(
+          const Duration(minutes: 5),
+          onTimeout: () => http.Response('', 504),
+        );
     if (res.statusCode == 200) {
       final json = jsonDecode(res.body);
       return json['videoUrl'] as String?;
@@ -326,7 +365,9 @@ class ApiService {
   // ═══════════════════════════════════════════════════════════════════
 
   static Future<List<dynamic>> getProducts(int userId) async {
-    final res = await _client.get(Uri.parse('$baseUrl/products?userId=$userId'));
+    final res = await _client.get(
+      Uri.parse('$baseUrl/products?userId=$userId'),
+    );
     if (res.statusCode == 200) return jsonDecode(res.body);
     return [];
   }
@@ -342,12 +383,16 @@ class ApiService {
     bool isEcommerce = false,
     File? image,
   }) async {
-    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/products'));
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/products'),
+    );
     request.fields['userId'] = userId.toString();
     request.fields['name'] = name;
     if (description != null) request.fields['description'] = description;
     if (price != null) request.fields['price'] = price.toString();
-    if (whatsAppMessage != null) request.fields['whatsAppMessage'] = whatsAppMessage;
+    if (whatsAppMessage != null)
+      request.fields['whatsAppMessage'] = whatsAppMessage;
     request.fields['isEcommerce'] = isEcommerce.toString();
     if (image != null) {
       request.files.add(await http.MultipartFile.fromPath('image', image.path));
@@ -359,7 +404,9 @@ class ApiService {
     }
     try {
       final err = jsonDecode(body);
-      return {'error': err['error'] ?? err['title'] ?? 'Failed to add product.'};
+      return {
+        'error': err['error'] ?? err['title'] ?? 'Failed to add product.',
+      };
     } catch (_) {
       return {'error': 'Failed to add product (HTTP ${response.statusCode}).'};
     }
@@ -384,13 +431,17 @@ class ApiService {
     bool isEcommerce = false,
     File? image,
   }) async {
-    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/products/update'));
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/products/update'),
+    );
     request.fields['userId'] = userId.toString();
     request.fields['productId'] = productId.toString();
     request.fields['name'] = name;
     if (description != null) request.fields['description'] = description;
     if (price != null) request.fields['price'] = price.toString();
-    if (whatsAppMessage != null) request.fields['whatsAppMessage'] = whatsAppMessage;
+    if (whatsAppMessage != null)
+      request.fields['whatsAppMessage'] = whatsAppMessage;
     request.fields['isEcommerce'] = isEcommerce.toString();
     if (image != null) {
       request.files.add(await http.MultipartFile.fromPath('image', image.path));
@@ -402,9 +453,13 @@ class ApiService {
     }
     try {
       final err = jsonDecode(body);
-      return {'error': err['error'] ?? err['title'] ?? 'Failed to update product.'};
+      return {
+        'error': err['error'] ?? err['title'] ?? 'Failed to update product.',
+      };
     } catch (_) {
-      return {'error': 'Failed to update product (HTTP ${response.statusCode}).'};
+      return {
+        'error': 'Failed to update product (HTTP ${response.statusCode}).',
+      };
     }
   }
   // ═══════════════════════════════════════════════════════════════════
@@ -419,7 +474,9 @@ class ApiService {
   };
 
   static Future<Map<String, dynamic>> _storefrontResponse(
-      Future<http.Response> response, String fallback) async {
+    Future<http.Response> response,
+    String fallback,
+  ) async {
     final res = await response;
     try {
       final body = jsonDecode(res.body) as Map<String, dynamic>;
@@ -441,7 +498,9 @@ class ApiService {
   static Future<Map<String, dynamic>> resolveStorefront(String slug) {
     return _storefrontResponse(
       _client.get(
-        Uri.parse('$baseUrl/storefront/resolve?slug=${Uri.encodeQueryComponent(slug)}'),
+        Uri.parse(
+          '$baseUrl/storefront/resolve?slug=${Uri.encodeQueryComponent(slug)}',
+        ),
       ),
       'Unable to find that store.',
     );
@@ -674,23 +733,36 @@ class ApiService {
 
   // ── Customer Master ──
   static Future<List<dynamic>> getCustomers(int userId) async {
-    final res = await _client.get(Uri.parse('$baseUrl/customers?userId=$userId'));
+    final res = await _client.get(
+      Uri.parse('$baseUrl/customers?userId=$userId'),
+    );
     if (res.statusCode == 200) return jsonDecode(res.body);
     return [];
   }
 
-  static Future<Map<String, dynamic>> saveCustomer(Map<String, dynamic> data, {int? id}) async {
+  static Future<Map<String, dynamic>> saveCustomer(
+    Map<String, dynamic> data, {
+    int? id,
+  }) async {
     final res = id == null
-        ? await _client.post(Uri.parse('$baseUrl/customers'),
-            headers: {'Content-Type': 'application/json'}, body: jsonEncode(data))
-        : await _client.put(Uri.parse('$baseUrl/customers/$id'),
-            headers: {'Content-Type': 'application/json'}, body: jsonEncode(data));
+        ? await _client.post(
+            Uri.parse('$baseUrl/customers'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(data),
+          )
+        : await _client.put(
+            Uri.parse('$baseUrl/customers/$id'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(data),
+          );
     if (res.statusCode == 200) return {'success': true};
     return _errBody(res, 'Failed to save customer.');
   }
 
   static Future<bool> deleteCustomer(int userId, int id) async {
-    final res = await _client.delete(Uri.parse('$baseUrl/customers/$id?userId=$userId'));
+    final res = await _client.delete(
+      Uri.parse('$baseUrl/customers/$id?userId=$userId'),
+    );
     return res.statusCode == 200;
   }
 
@@ -701,23 +773,40 @@ class ApiService {
     return [];
   }
 
-  static Future<Map<String, dynamic>> saveItem(Map<String, dynamic> data, {int? id}) async {
+  static Future<Map<String, dynamic>> saveItem(
+    Map<String, dynamic> data, {
+    int? id,
+  }) async {
     final res = id == null
-        ? await _client.post(Uri.parse('$baseUrl/items'),
-            headers: {'Content-Type': 'application/json'}, body: jsonEncode(data))
-        : await _client.put(Uri.parse('$baseUrl/items/$id'),
-            headers: {'Content-Type': 'application/json'}, body: jsonEncode(data));
+        ? await _client.post(
+            Uri.parse('$baseUrl/items'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(data),
+          )
+        : await _client.put(
+            Uri.parse('$baseUrl/items/$id'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(data),
+          );
     if (res.statusCode == 200) return {'success': true};
     return _errBody(res, 'Failed to save item.');
   }
 
   static Future<bool> deleteItem(int userId, int id) async {
-    final res = await _client.delete(Uri.parse('$baseUrl/items/$id?userId=$userId'));
+    final res = await _client.delete(
+      Uri.parse('$baseUrl/items/$id?userId=$userId'),
+    );
     return res.statusCode == 200;
   }
 
-  static Future<List<String>> uploadItemImages(int userId, List<File> files) async {
-    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/items/upload-images'));
+  static Future<List<String>> uploadItemImages(
+    int userId,
+    List<File> files,
+  ) async {
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/items/upload-images'),
+    );
     request.fields['userId'] = userId.toString();
     for (final file in files) {
       request.files.add(await http.MultipartFile.fromPath('files', file.path));
@@ -729,45 +818,130 @@ class ApiService {
   }
 
   static Future<List<dynamic>> getTransports(int userId) async {
-    final res = await _client.get(Uri.parse('$baseUrl/transports?userId=$userId'));
+    final res = await _client.get(
+      Uri.parse('$baseUrl/transports?userId=$userId'),
+    );
     if (res.statusCode == 200) return jsonDecode(res.body);
     return [];
   }
-  static Future<Map<String, dynamic>> saveTransport(int userId, String name, {int? id}) async {
+
+  static Future<Map<String, dynamic>> saveTransport(
+    int userId,
+    String name, {
+    int? id,
+  }) async {
     final data = {'userId': userId, 'name': name.trim()};
     final res = id == null
-        ? await _client.post(Uri.parse('$baseUrl/transports'), headers: {'Content-Type': 'application/json'}, body: jsonEncode(data))
-        : await _client.put(Uri.parse('$baseUrl/transports/$id'), headers: {'Content-Type': 'application/json'}, body: jsonEncode(data));
-    if (res.statusCode == 200) return {'success': true, ...jsonDecode(res.body)};
+        ? await _client.post(
+            Uri.parse('$baseUrl/transports'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(data),
+          )
+        : await _client.put(
+            Uri.parse('$baseUrl/transports/$id'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(data),
+          );
+    if (res.statusCode == 200)
+      return {'success': true, ...jsonDecode(res.body)};
     return _errBody(res, 'Unable to save transporter.');
   }
 
   static Future<bool> deleteTransport(int userId, int id) async {
-    final res = await _client.delete(Uri.parse('$baseUrl/transports/$id?userId=$userId'));
+    final res = await _client.delete(
+      Uri.parse('$baseUrl/transports/$id?userId=$userId'),
+    );
     return res.statusCode == 200;
   }
 
   static Future<List<dynamic>> getPackingLists(int userId) async {
-    final res = await _client.get(Uri.parse('$baseUrl/packing-lists?userId=$userId'));
+    final res = await _client.get(
+      Uri.parse('$baseUrl/packing-lists?userId=$userId'),
+    );
     if (res.statusCode == 200) return jsonDecode(res.body);
     return [];
   }
 
-  static Future<Map<String, dynamic>> savePackingList(Map<String, dynamic> data, {int? id}) async {
+  static Future<Map<String, dynamic>> savePackingList(
+    Map<String, dynamic> data, {
+    int? id,
+  }) async {
     final res = id == null
-        ? await _client.post(Uri.parse('$baseUrl/packing-lists'), headers: {'Content-Type': 'application/json'}, body: jsonEncode(data))
-        : await _client.put(Uri.parse('$baseUrl/packing-lists/$id'), headers: {'Content-Type': 'application/json'}, body: jsonEncode(data));
-    if (res.statusCode == 200) return {'success': true, ...jsonDecode(res.body)};
+        ? await _client.post(
+            Uri.parse('$baseUrl/packing-lists'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(data),
+          )
+        : await _client.put(
+            Uri.parse('$baseUrl/packing-lists/$id'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(data),
+          );
+    if (res.statusCode == 200)
+      return {'success': true, ...jsonDecode(res.body)};
     return _errBody(res, 'Failed to save packing list.');
   }
 
   static Future<bool> deletePackingList(int userId, int id) async {
-    final res = await _client.delete(Uri.parse('$baseUrl/packing-lists/$id?userId=$userId'));
+    final res = await _client.delete(
+      Uri.parse('$baseUrl/packing-lists/$id?userId=$userId'),
+    );
     return res.statusCode == 200;
   }
 
+  static Future<List<dynamic>> getOrders(int userId) async {
+    final res = await _client.get(Uri.parse('$baseUrl/orders?userId=$userId'));
+    if (res.statusCode == 200) return jsonDecode(res.body);
+    try {
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      throw ApiException(body['error']?.toString() ?? 'Unable to load orders.');
+    } on FormatException {
+      throw ApiException('Unable to load orders (HTTP ${res.statusCode}).');
+    }
+  }
+
+  static Future<Map<String, dynamic>> saveOrder(
+    Map<String, dynamic> data, {
+    int? id,
+  }) async {
+    final res = id == null
+        ? await _client.post(
+            Uri.parse('$baseUrl/orders'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(data),
+          )
+        : await _client.put(
+            Uri.parse('$baseUrl/orders/$id'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(data),
+          );
+    if (res.statusCode == 200) {
+      return {'success': true, ...jsonDecode(res.body)};
+    }
+    return _errBody(res, 'Unable to save order.');
+  }
+
+  static Future<bool> deleteOrder(int userId, int id) async {
+    final res = await _client.delete(Uri.parse('$baseUrl/orders/$id?userId=$userId'));
+    return res.statusCode == 200;
+  }
+
+  static Future<Map<String, dynamic>> sendOrderToPackingList(
+    int userId,
+    int id,
+  ) async {
+    final res = await _client.post(
+      Uri.parse('$baseUrl/orders/$id/send-to-packing-list?userId=$userId'),
+    );
+    if (res.statusCode == 200) return {'success': true, ...jsonDecode(res.body)};
+    return _errBody(res, 'Unable to send order to packing list.');
+  }
+
   static Future<String?> uploadPackingItem(int userId, File file) async {
-    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/packing-lists/upload-item'));
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/packing-lists/upload-item'),
+    );
     request.fields['userId'] = userId.toString();
     request.files.add(await http.MultipartFile.fromPath('file', file.path));
     final response = await request.send();
@@ -777,55 +951,98 @@ class ApiService {
   }
 
   static Future<List<dynamic>> getReplacements(int userId) async {
-    final res = await _client.get(Uri.parse('$baseUrl/replacements?userId=$userId'));
+    final res = await _client.get(
+      Uri.parse('$baseUrl/replacements?userId=$userId'),
+    );
     if (res.statusCode == 200) return jsonDecode(res.body);
     return [];
   }
 
-  static Future<Map<String, dynamic>> saveReplacement(Map<String, dynamic> data, {int? id}) async {
+  static Future<Map<String, dynamic>> saveReplacement(
+    Map<String, dynamic> data, {
+    int? id,
+  }) async {
     final res = id == null
-        ? await _client.post(Uri.parse('$baseUrl/replacements'), headers: {'Content-Type': 'application/json'}, body: jsonEncode(data))
-        : await _client.put(Uri.parse('$baseUrl/replacements/$id'), headers: {'Content-Type': 'application/json'}, body: jsonEncode(data));
-    if (res.statusCode == 200) return {'success': true, ...jsonDecode(res.body)};
+        ? await _client.post(
+            Uri.parse('$baseUrl/replacements'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(data),
+          )
+        : await _client.put(
+            Uri.parse('$baseUrl/replacements/$id'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(data),
+          );
+    if (res.statusCode == 200)
+      return {'success': true, ...jsonDecode(res.body)};
     return _errBody(res, 'Failed to save replacement.');
   }
 
   static Future<bool> deleteReplacement(int userId, int id) async {
-    final res = await _client.delete(Uri.parse('$baseUrl/replacements/$id?userId=$userId'));
+    final res = await _client.delete(
+      Uri.parse('$baseUrl/replacements/$id?userId=$userId'),
+    );
     return res.statusCode == 200;
   }
 
   // ── Stock Entry ──
-  static Future<List<dynamic>> getStockSummary(int userId, {String? search}) async {
-    final q = (search != null && search.isNotEmpty) ? '&search=${Uri.encodeQueryComponent(search)}' : '';
-    final res = await _client.get(Uri.parse('$baseUrl/stock/summary?userId=$userId$q'));
+  static Future<List<dynamic>> getStockSummary(
+    int userId, {
+    String? search,
+  }) async {
+    final q = (search != null && search.isNotEmpty)
+        ? '&search=${Uri.encodeQueryComponent(search)}'
+        : '';
+    final res = await _client.get(
+      Uri.parse('$baseUrl/stock/summary?userId=$userId$q'),
+    );
     if (res.statusCode == 200) return jsonDecode(res.body);
     return [];
   }
 
-  static Future<List<dynamic>> getStockEntries(int userId, {String? search}) async {
-    final q = (search != null && search.isNotEmpty) ? '&search=${Uri.encodeQueryComponent(search)}' : '';
-    final res = await _client.get(Uri.parse('$baseUrl/stock/entries?userId=$userId$q'));
+  static Future<List<dynamic>> getStockEntries(
+    int userId, {
+    String? search,
+  }) async {
+    final q = (search != null && search.isNotEmpty)
+        ? '&search=${Uri.encodeQueryComponent(search)}'
+        : '';
+    final res = await _client.get(
+      Uri.parse('$baseUrl/stock/entries?userId=$userId$q'),
+    );
     if (res.statusCode == 200) return jsonDecode(res.body);
     return [];
   }
 
-  static Future<Map<String, dynamic>> addStock(Map<String, dynamic> data) async {
-    final res = await _client.post(Uri.parse('$baseUrl/stock'),
-        headers: {'Content-Type': 'application/json'}, body: jsonEncode(data));
+  static Future<Map<String, dynamic>> addStock(
+    Map<String, dynamic> data,
+  ) async {
+    final res = await _client.post(
+      Uri.parse('$baseUrl/stock'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(data),
+    );
     if (res.statusCode == 200) return {'success': true};
     return _errBody(res, 'Failed to add stock.');
   }
 
-  static Future<Map<String, dynamic>> updateStock(int id, Map<String, dynamic> data) async {
-    final res = await _client.put(Uri.parse('$baseUrl/stock/$id'),
-        headers: {'Content-Type': 'application/json'}, body: jsonEncode(data));
+  static Future<Map<String, dynamic>> updateStock(
+    int id,
+    Map<String, dynamic> data,
+  ) async {
+    final res = await _client.put(
+      Uri.parse('$baseUrl/stock/$id'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(data),
+    );
     if (res.statusCode == 200) return {'success': true};
     return _errBody(res, 'Failed to update stock.');
   }
 
   static Future<bool> deleteStock(int userId, int id) async {
-    final res = await _client.delete(Uri.parse('$baseUrl/stock/$id?userId=$userId'));
+    final res = await _client.delete(
+      Uri.parse('$baseUrl/stock/$id?userId=$userId'),
+    );
     if (res.statusCode == 200) return true;
 
     // Fallback for environments/clients where DELETE is blocked.
@@ -839,30 +1056,49 @@ class ApiService {
 
   // ── Supplier Master ──
   static Future<List<dynamic>> getSuppliers(int userId) async {
-    final res = await _client.get(Uri.parse('$baseUrl/suppliers?userId=$userId'));
+    final res = await _client.get(
+      Uri.parse('$baseUrl/suppliers?userId=$userId'),
+    );
     if (res.statusCode == 200) return jsonDecode(res.body);
     return [];
   }
 
-  static Future<Map<String, dynamic>> saveSupplier(Map<String, dynamic> data, {int? id}) async {
+  static Future<Map<String, dynamic>> saveSupplier(
+    Map<String, dynamic> data, {
+    int? id,
+  }) async {
     final res = id == null
-        ? await _client.post(Uri.parse('$baseUrl/suppliers'),
-            headers: {'Content-Type': 'application/json'}, body: jsonEncode(data))
-        : await _client.put(Uri.parse('$baseUrl/suppliers/$id'),
-            headers: {'Content-Type': 'application/json'}, body: jsonEncode(data));
+        ? await _client.post(
+            Uri.parse('$baseUrl/suppliers'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(data),
+          )
+        : await _client.put(
+            Uri.parse('$baseUrl/suppliers/$id'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(data),
+          );
     if (res.statusCode == 200) return {'success': true};
     return _errBody(res, 'Failed to save supplier.');
   }
 
   static Future<bool> deleteSupplier(int userId, int id) async {
-    final res = await _client.delete(Uri.parse('$baseUrl/suppliers/$id?userId=$userId'));
+    final res = await _client.delete(
+      Uri.parse('$baseUrl/suppliers/$id?userId=$userId'),
+    );
     return res.statusCode == 200;
   }
 
   // ── Supplier Ledger ──
-  static Future<double> getSupplierPartyPending(int userId, int supplierId) async {
-    final res = await _client.get(Uri.parse(
-        '$baseUrl/supplier-ledger/party-pending?userId=$userId&supplierId=$supplierId'));
+  static Future<double> getSupplierPartyPending(
+    int userId,
+    int supplierId,
+  ) async {
+    final res = await _client.get(
+      Uri.parse(
+        '$baseUrl/supplier-ledger/party-pending?userId=$userId&supplierId=$supplierId',
+      ),
+    );
     if (res.statusCode == 200) {
       final b = jsonDecode(res.body);
       return (b['totalPending'] ?? 0).toDouble();
@@ -878,28 +1114,43 @@ class ApiService {
     String? toDate,
   }) async {
     final params = <String, String>{'userId': userId.toString()};
-    if (supplierId != null && supplierId > 0) params['supplierId'] = supplierId.toString();
+    if (supplierId != null && supplierId > 0)
+      params['supplierId'] = supplierId.toString();
     if (search != null && search.isNotEmpty) params['search'] = search;
     if (fromDate != null && fromDate.isNotEmpty) params['fromDate'] = fromDate;
     if (toDate != null && toDate.isNotEmpty) params['toDate'] = toDate;
-    final uri = Uri.parse('$baseUrl/supplier-ledger').replace(queryParameters: params);
+    final uri = Uri.parse(
+      '$baseUrl/supplier-ledger',
+    ).replace(queryParameters: params);
     final res = await _client.get(uri);
     if (res.statusCode == 200) return jsonDecode(res.body);
     return [];
   }
 
-  static Future<Map<String, dynamic>> saveSupplierLedger(Map<String, dynamic> data, {int? id}) async {
+  static Future<Map<String, dynamic>> saveSupplierLedger(
+    Map<String, dynamic> data, {
+    int? id,
+  }) async {
     final res = id == null
-        ? await _client.post(Uri.parse('$baseUrl/supplier-ledger'),
-            headers: {'Content-Type': 'application/json'}, body: jsonEncode(data))
-        : await _client.put(Uri.parse('$baseUrl/supplier-ledger/$id'),
-            headers: {'Content-Type': 'application/json'}, body: jsonEncode(data));
-    if (res.statusCode == 200) return {'success': true, ...jsonDecode(res.body)};
+        ? await _client.post(
+            Uri.parse('$baseUrl/supplier-ledger'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(data),
+          )
+        : await _client.put(
+            Uri.parse('$baseUrl/supplier-ledger/$id'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(data),
+          );
+    if (res.statusCode == 200)
+      return {'success': true, ...jsonDecode(res.body)};
     return _errBody(res, 'Failed to save supplier ledger entry.');
   }
 
   static Future<bool> deleteSupplierLedger(int userId, int id) async {
-    final res = await _client.delete(Uri.parse('$baseUrl/supplier-ledger/$id?userId=$userId'));
+    final res = await _client.delete(
+      Uri.parse('$baseUrl/supplier-ledger/$id?userId=$userId'),
+    );
     if (res.statusCode == 200) return true;
 
     // Fallback for environments/clients where DELETE is blocked.
@@ -919,30 +1170,46 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>?> getSaleDetail(int userId, int id) async {
-    final res = await _client.get(Uri.parse('$baseUrl/sales/$id?userId=$userId'));
+    final res = await _client.get(
+      Uri.parse('$baseUrl/sales/$id?userId=$userId'),
+    );
     if (res.statusCode == 200) return jsonDecode(res.body);
     return null;
   }
 
-  static Future<Map<String, dynamic>> saveSale(Map<String, dynamic> data, {int? id}) async {
+  static Future<Map<String, dynamic>> saveSale(
+    Map<String, dynamic> data, {
+    int? id,
+  }) async {
     final res = id == null
-        ? await _client.post(Uri.parse('$baseUrl/sales'),
-            headers: {'Content-Type': 'application/json'}, body: jsonEncode(data))
-        : await _client.put(Uri.parse('$baseUrl/sales/$id'),
-            headers: {'Content-Type': 'application/json'}, body: jsonEncode(data));
+        ? await _client.post(
+            Uri.parse('$baseUrl/sales'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(data),
+          )
+        : await _client.put(
+            Uri.parse('$baseUrl/sales/$id'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(data),
+          );
     if (res.statusCode == 200) return {'success': true};
     return _errBody(res, 'Failed to save sale.');
   }
 
   static Future<bool> deleteSale(int userId, int id) async {
-    final res = await _client.delete(Uri.parse('$baseUrl/sales/$id?userId=$userId'));
+    final res = await _client.delete(
+      Uri.parse('$baseUrl/sales/$id?userId=$userId'),
+    );
     return res.statusCode == 200;
   }
 
   // ── Ledger ──
   static Future<double> getPartyPending(int userId, int customerId) async {
     final res = await _client.get(
-        Uri.parse('$baseUrl/ledger/party-pending?userId=$userId&customerId=$customerId'));
+      Uri.parse(
+        '$baseUrl/ledger/party-pending?userId=$userId&customerId=$customerId',
+      ),
+    );
     if (res.statusCode == 200) {
       final b = jsonDecode(res.body);
       return (b['totalPending'] ?? 0).toDouble();
@@ -958,7 +1225,8 @@ class ApiService {
     String? toDate,
   }) async {
     final params = <String, String>{'userId': userId.toString()};
-    if (customerId != null && customerId > 0) params['customerId'] = customerId.toString();
+    if (customerId != null && customerId > 0)
+      params['customerId'] = customerId.toString();
     if (search != null && search.isNotEmpty) params['search'] = search;
     if (fromDate != null && fromDate.isNotEmpty) params['fromDate'] = fromDate;
     if (toDate != null && toDate.isNotEmpty) params['toDate'] = toDate;
@@ -968,18 +1236,30 @@ class ApiService {
     return [];
   }
 
-  static Future<Map<String, dynamic>> saveLedger(Map<String, dynamic> data, {int? id}) async {
+  static Future<Map<String, dynamic>> saveLedger(
+    Map<String, dynamic> data, {
+    int? id,
+  }) async {
     final res = id == null
-        ? await _client.post(Uri.parse('$baseUrl/ledger'),
-            headers: {'Content-Type': 'application/json'}, body: jsonEncode(data))
-        : await _client.put(Uri.parse('$baseUrl/ledger/$id'),
-            headers: {'Content-Type': 'application/json'}, body: jsonEncode(data));
-    if (res.statusCode == 200) return {'success': true, ...jsonDecode(res.body)};
+        ? await _client.post(
+            Uri.parse('$baseUrl/ledger'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(data),
+          )
+        : await _client.put(
+            Uri.parse('$baseUrl/ledger/$id'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(data),
+          );
+    if (res.statusCode == 200)
+      return {'success': true, ...jsonDecode(res.body)};
     return _errBody(res, 'Failed to save ledger entry.');
   }
 
   static Future<bool> deleteLedger(int userId, int id) async {
-    final res = await _client.delete(Uri.parse('$baseUrl/ledger/$id?userId=$userId'));
+    final res = await _client.delete(
+      Uri.parse('$baseUrl/ledger/$id?userId=$userId'),
+    );
     if (res.statusCode == 200) return true;
 
     // Fallback for environments/clients where DELETE is blocked.
@@ -1003,8 +1283,10 @@ class ApiService {
     String? caption,
     required File image,
   }) async {
-    final request =
-        http.MultipartRequest('POST', Uri.parse('$baseUrl/gallery/photo'));
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/gallery/photo'),
+    );
     request.fields['userId'] = userId.toString();
     if (caption != null) request.fields['caption'] = caption;
     request.files.add(await http.MultipartFile.fromPath('image', image.path));
@@ -1015,7 +1297,9 @@ class ApiService {
     }
     try {
       final err = jsonDecode(body);
-      return {'error': err['error'] ?? err['title'] ?? 'Failed to upload photo.'};
+      return {
+        'error': err['error'] ?? err['title'] ?? 'Failed to upload photo.',
+      };
     } catch (_) {
       return {'error': 'Failed to upload photo (HTTP ${response.statusCode}).'};
     }
@@ -1034,8 +1318,9 @@ class ApiService {
   // ═══════════════════════════════════════════════════════════════════
 
   static Future<Map<String, dynamic>?> getCardProfile(int userId) async {
-    final res =
-        await _client.get(Uri.parse('$baseUrl/card-profile?userId=$userId'));
+    final res = await _client.get(
+      Uri.parse('$baseUrl/card-profile?userId=$userId'),
+    );
     if (res.statusCode == 200) return jsonDecode(res.body);
     return null;
   }
@@ -1044,18 +1329,20 @@ class ApiService {
   // 6. BIRTHDAY / ANNIVERSARY REMINDERS
   // ═══════════════════════════════════════════════════════════════════
 
-  static Future<Map<String, dynamic>?> getBirthdayReminders(
-      int userId) async {
-    final res = await _client
-        .get(Uri.parse('$baseUrl/birthday-reminders?userId=$userId'));
+  static Future<Map<String, dynamic>?> getBirthdayReminders(int userId) async {
+    final res = await _client.get(
+      Uri.parse('$baseUrl/birthday-reminders?userId=$userId'),
+    );
     if (res.statusCode == 200) return jsonDecode(res.body);
     return null;
   }
 
   static Future<Map<String, dynamic>?> getAnniversaryReminders(
-      int userId) async {
-    final res = await _client
-        .get(Uri.parse('$baseUrl/anniversary-reminders?userId=$userId'));
+    int userId,
+  ) async {
+    final res = await _client.get(
+      Uri.parse('$baseUrl/anniversary-reminders?userId=$userId'),
+    );
     if (res.statusCode == 200) return jsonDecode(res.body);
     return null;
   }
@@ -1065,7 +1352,10 @@ class ApiService {
   // ═══════════════════════════════════════════════════════════════════
 
   static Future<Map<String, dynamic>?> generateReviewLinks(
-      int userId, List<String> mobileNumbers, String? googleReviewLink) async {
+    int userId,
+    List<String> mobileNumbers,
+    String? googleReviewLink,
+  ) async {
     final res = await _client.post(
       Uri.parse('$baseUrl/google-review/generate-links'),
       headers: {'Content-Type': 'application/json'},
@@ -1083,17 +1373,25 @@ class ApiService {
   // 8. HAPPY CUSTOMER PHOTO
   // ═══════════════════════════════════════════════════════════════════
 
-  static Future<Map<String, dynamic>?> getCompanyInfoForPhoto(int userId) async {
+  static Future<Map<String, dynamic>?> getCompanyInfoForPhoto(
+    int userId,
+  ) async {
     final res = await _client.get(
-        Uri.parse('$baseUrl/customer-photo/company-info?userId=$userId'));
+      Uri.parse('$baseUrl/customer-photo/company-info?userId=$userId'),
+    );
     if (res.statusCode == 200) return jsonDecode(res.body);
     return null;
   }
 
   static Future<Map<String, dynamic>?> uploadCustomerPhoto(
-      int userId, String filePath, String? customerName) async {
+    int userId,
+    String filePath,
+    String? customerName,
+  ) async {
     var request = http.MultipartRequest(
-        'POST', Uri.parse('$baseUrl/customer-photo/upload'));
+      'POST',
+      Uri.parse('$baseUrl/customer-photo/upload'),
+    );
     request.fields['userId'] = userId.toString();
     if (customerName != null) request.fields['customerName'] = customerName;
     request.files.add(await http.MultipartFile.fromPath('file', filePath));
@@ -1109,21 +1407,22 @@ class ApiService {
   // ═══════════════════════════════════════════════════════════════════
 
   static Future<List<dynamic>> getRedeemGifts(int userId) async {
-    final res = await _client.get(Uri.parse('$baseUrl/redeem-gifts?userId=$userId'));
+    final res = await _client.get(
+      Uri.parse('$baseUrl/redeem-gifts?userId=$userId'),
+    );
     if (res.statusCode == 200) return jsonDecode(res.body) as List<dynamic>;
     return [];
   }
 
   static Future<Map<String, dynamic>?> redeemPoints(
-      int userId, String mobile, int giftId) async {
+    int userId,
+    String mobile,
+    int giftId,
+  ) async {
     final res = await _client.post(
       Uri.parse('$baseUrl/redeem-points'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'userId': userId,
-        'mobile': mobile,
-        'giftId': giftId,
-      }),
+      body: jsonEncode({'userId': userId, 'mobile': mobile, 'giftId': giftId}),
     );
     if (res.statusCode == 200) return jsonDecode(res.body);
     try {
@@ -1139,7 +1438,12 @@ class ApiService {
   // ═══════════════════════════════════════════════════════════════════
 
   static Future<Map<String, dynamic>?> addReferralPoints(
-      int userId, String mobile, double amount, String? billNo, String? remarks) async {
+    int userId,
+    String mobile,
+    double amount,
+    String? billNo,
+    String? remarks,
+  ) async {
     final res = await _client.post(
       Uri.parse('$baseUrl/add-referral-points'),
       headers: {'Content-Type': 'application/json'},
@@ -1160,9 +1464,13 @@ class ApiService {
     }
   }
 
-  static Future<List<dynamic>> getRoyaltyHistory(int userId, String mobile) async {
+  static Future<List<dynamic>> getRoyaltyHistory(
+    int userId,
+    String mobile,
+  ) async {
     final res = await _client.get(
-        Uri.parse('$baseUrl/royalty-history?userId=$userId&mobile=$mobile'));
+      Uri.parse('$baseUrl/royalty-history?userId=$userId&mobile=$mobile'),
+    );
     if (res.statusCode == 200) return jsonDecode(res.body) as List<dynamic>;
     return [];
   }
@@ -1171,11 +1479,16 @@ class ApiService {
   // 11. FOLLOWUP MASTER
   // ═══════════════════════════════════════════════════════════════════
 
-  static Future<List<dynamic>> getFollowupInquiries(int userId,
-      {String? fromDate, String? toDate}) async {
+  static Future<List<dynamic>> getFollowupInquiries(
+    int userId, {
+    String? fromDate,
+    String? toDate,
+    int? productId,
+  }) async {
     var url = '$baseUrl/followup?userId=$userId';
     if (fromDate != null) url += '&fromDate=$fromDate';
     if (toDate != null) url += '&toDate=$toDate';
+    if (productId != null) url += '&productId=$productId';
     final res = await _client.get(Uri.parse(url));
     if (res.statusCode == 200) return jsonDecode(res.body) as List<dynamic>;
     return [];

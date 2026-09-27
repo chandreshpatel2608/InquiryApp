@@ -51,7 +51,7 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen> {
         builder: (ctx, setModal) => Padding(
           padding: EdgeInsets.only(
             left: 16, right: 16, top: 16,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + MediaQuery.of(ctx).padding.bottom + 24,
           ),
           child: SingleChildScrollView(
             child: Column(
@@ -97,9 +97,12 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen> {
                       labelText: 'Address', border: OutlineInputBorder()),
                 ),
                 const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
+                SafeArea(
+                  top: false,
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                    style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
                     icon: saving
                         ? const SizedBox(width: 18, height: 18,
                             child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
@@ -129,6 +132,7 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen> {
                         _snack(result['error'] ?? 'Failed to save', error: true);
                       }
                     },
+                    ),
                   ),
                 ),
               ],
