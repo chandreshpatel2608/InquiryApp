@@ -1,4 +1,4 @@
-package com.rudra.rudra_inquiry
+package com.devalllp.app
 
 import io.flutter.embedding.android.FlutterActivity
 
