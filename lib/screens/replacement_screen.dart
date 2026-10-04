@@ -133,9 +133,9 @@ class _ReplacementScreenState extends State<ReplacementScreen> {
                             onPressed: () => _openForm(record),
                           ),
                           IconButton(
-                            tooltip: 'Print Replacement',
-                            icon: const Icon(Icons.print_outlined),
-                            onPressed: () => OperationsPdf.printReplacement(record, businessName: widget.businessName),
+                            tooltip: 'Share Replacement PDF',
+                            icon: const Icon(Icons.share_outlined),
+                            onPressed: () => OperationsPdf.shareReplacement(record, businessName: widget.businessName),
                           ),
                           if (widget.canDelete)
                             IconButton(

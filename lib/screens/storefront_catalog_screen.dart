@@ -12,21 +12,48 @@ import '../services/api_service.dart';
 class StorefrontCatalogScreen extends StatefulWidget {
   final int? cardProfileId;
 
-  const StorefrontCatalogScreen({super.key, required this.cardProfileId});
+  /// Category picked in the page header; 'All' shows everything.
+  final String category;
+
+  /// Brand picked in the page header; 'All' shows every brand.
+  final String brand;
+
+  /// Text entered in the homepage product search.
+  final String searchQuery;
+
+  /// Reports the categories found in the catalogue so the header can list them.
+  final ValueChanged<List<String>>? onCategoriesLoaded;
+
+  /// Reports the brands found in the catalogue so the header can list them.
+  final ValueChanged<List<String>>? onBrandsLoaded;
+
+  /// Keeps the top-level app bar in sync with the customer shopping session.
+  final ValueChanged<Map<String, dynamic>?>? onCustomerChanged;
+
+  const StorefrontCatalogScreen({
+    super.key,
+    required this.cardProfileId,
+    this.category = 'All',
+    this.brand = 'All',
+    this.searchQuery = '',
+    this.onCategoriesLoaded,
+    this.onBrandsLoaded,
+    this.onCustomerChanged,
+  });
 
   @override
   State<StorefrontCatalogScreen> createState() =>
-      _StorefrontCatalogScreenState();
+      StorefrontCatalogScreenState();
 }
 
-class _StorefrontCatalogScreenState extends State<StorefrontCatalogScreen> {
+class StorefrontCatalogScreenState extends State<StorefrontCatalogScreen> {
   List<dynamic> _products = [];
   Map<String, dynamic> _cart = const {'items': [], 'count': 0, 'total': 0};
   Map<String, dynamic>? _customer;
   bool _loading = true;
-  String _category = 'All';
 
   String get _sessionKey => 'storefront_customer_${widget.cardProfileId}';
+  String get _catalogCacheKey => 'storefront_catalog_${widget.cardProfileId}';
   String? get _token => _customer?['authToken']?.toString();
   List<dynamic> get _cartItems =>
       List<dynamic>.from(_cart['items'] ?? const []);
@@ -37,6 +64,12 @@ class _StorefrontCatalogScreenState extends State<StorefrontCatalogScreen> {
     super.initState();
     _load();
   }
+
+  Future<void> openCustomerSignIn() => _showAuth();
+  Future<void> openCustomerOrders() => _openOrders();
+  Future<void> openCustomerProfile() => _showCustomerProfile();
+  Future<void> signOutCustomer() => _signOut();
+  Future<void> openCart() => _openCart();
 
   int _number(dynamic value) {
     if (value is int) return value;
@@ -73,28 +106,83 @@ class _StorefrontCatalogScreenState extends State<StorefrontCatalogScreen> {
       }
     }
 
-    final products = await ApiService.getStorefrontProducts(profileId);
-    Map<String, dynamic> cart = const {'items': [], 'count': 0, 'total': 0};
-    final token = customer?['authToken']?.toString();
-    if (token != null && token.isNotEmpty) {
+    List<dynamic> cachedProducts = const [];
+    final cachedCatalog = prefs.getString(_catalogCacheKey);
+    if (cachedCatalog != null) {
       try {
-        cart = await ApiService.getStorefrontCart(
-          cardProfileId: profileId,
-          token: token,
-        );
-      } on ApiException {
-        await prefs.remove(_sessionKey);
-        customer = null;
+        cachedProducts = List<dynamic>.from(jsonDecode(cachedCatalog) as List);
+      } on FormatException {
+        await prefs.remove(_catalogCacheKey);
       }
     }
 
-    if (!mounted) return;
-    setState(() {
-      _products = products;
-      _customer = customer;
-      _cart = cart;
-      _loading = false;
-    });
+    if (cachedProducts.isNotEmpty && mounted) {
+      setState(() {
+        _products = cachedProducts;
+        _customer = customer;
+        _loading = false;
+      });
+      _publishFilters(cachedProducts);
+    }
+
+    Map<String, dynamic> cart = const {'items': [], 'count': 0, 'total': 0};
+    final token = customer?['authToken']?.toString();
+    try {
+      final requests = await Future.wait<dynamic>([
+        ApiService.getStorefrontProducts(profileId),
+        if (token != null && token.isNotEmpty)
+          ApiService.getStorefrontCart(cardProfileId: profileId, token: token),
+      ]);
+      final products = List<dynamic>.from(requests.first as List);
+      if (token != null && token.isNotEmpty && requests.length > 1) {
+        cart = Map<String, dynamic>.from(requests[1] as Map);
+      }
+
+      await prefs.setString(_catalogCacheKey, jsonEncode(products));
+      if (!mounted) return;
+      setState(() {
+        _products = products;
+        _customer = customer;
+        _cart = cart;
+        _loading = false;
+      });
+      widget.onCustomerChanged?.call(_customer);
+      _publishFilters(products);
+    } on ApiException {
+      if (!mounted) return;
+      setState(() {
+        _customer = customer;
+        _cart = cart;
+        _loading = false;
+      });
+      widget.onCustomerChanged?.call(_customer);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _customer = customer;
+        _cart = cart;
+        _loading = false;
+      });
+      widget.onCustomerChanged?.call(_customer);
+    }
+
+  }
+
+  void _publishFilters(List<dynamic> products) {
+    widget.onCategoriesLoaded?.call([
+      'All',
+      ...{
+        ...products.map((p) => p['categoryName']?.toString() ?? 'Other Products'),
+      },
+    ]);
+    widget.onBrandsLoaded?.call([
+      'All',
+      ...{
+        ...products
+            .map((p) => p['brandName']?.toString() ?? '')
+            .where((name) => name.isNotEmpty),
+      },
+    ]);
   }
 
   Future<void> _refreshCart() async {
@@ -107,9 +195,7 @@ class _StorefrontCatalogScreenState extends State<StorefrontCatalogScreen> {
         token: token,
       );
       if (mounted) setState(() => _cart = cart);
-    } on ApiException {
-      await _signOut(silent: true);
-    }
+    } on ApiException {}
   }
 
   Future<void> _showAuth() async {
@@ -126,6 +212,7 @@ class _StorefrontCatalogScreenState extends State<StorefrontCatalogScreen> {
     await prefs.setString(_sessionKey, jsonEncode(customer));
     if (!mounted) return;
     setState(() => _customer = customer);
+    widget.onCustomerChanged?.call(_customer);
     await _refreshCart();
   }
 
@@ -137,6 +224,7 @@ class _StorefrontCatalogScreenState extends State<StorefrontCatalogScreen> {
       _customer = null;
       _cart = const {'items': [], 'count': 0, 'total': 0};
     });
+    widget.onCustomerChanged?.call(null);
     if (!silent) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Signed out of customer shopping.')),
@@ -250,21 +338,21 @@ class _StorefrontCatalogScreenState extends State<StorefrontCatalogScreen> {
       return const SizedBox.shrink();
     }
 
-    final categories = <String>{
-      'All',
-      ..._products.map(
-        (p) => p['categoryName']?.toString() ?? 'Other Products',
-      ),
-    };
-    final visible = _category == 'All'
-        ? _products
-        : _products
-              .where(
-                (p) =>
-                    (p['categoryName']?.toString() ?? 'Other Products') ==
-                    _category,
-              )
-              .toList();
+    final visible = _products.where((p) {
+      final matchesCategory = widget.category == 'All' ||
+          (p['categoryName']?.toString() ?? 'Other Products') == widget.category;
+      final matchesBrand = widget.brand == 'All' ||
+          (p['brandName']?.toString() ?? '') == widget.brand;
+      final search = widget.searchQuery.trim().toLowerCase();
+      final searchText = [
+        p['name'],
+        p['description'],
+        p['brandName'],
+        p['categoryName'],
+      ].map((value) => value?.toString().toLowerCase() ?? '').join(' ');
+      return matchesCategory && matchesBrand &&
+          (search.isEmpty || searchText.contains(search));
+    }).toList();
 
     return Card(
       margin: EdgeInsets.zero,
@@ -283,70 +371,6 @@ class _StorefrontCatalogScreenState extends State<StorefrontCatalogScreen> {
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                 ),
-                IconButton(
-                  tooltip: 'My orders',
-                  onPressed: _openOrders,
-                  icon: const Icon(Icons.receipt_long_outlined),
-                ),
-                IconButton(
-                  tooltip: _customer == null
-                      ? 'Customer sign in'
-                      : 'Customer account',
-                  onPressed: _customer == null
-                      ? _showAuth
-                      : () => showModalBottomSheet<void>(
-                          context: context,
-                          builder: (sheetContext) => SafeArea(
-                            child: Wrap(
-                              children: [
-                                ListTile(
-                                  leading: const Icon(Icons.person_outline),
-                                  title: Text(
-                                    _customer?['name']?.toString() ??
-                                        'Customer',
-                                  ),
-                                ),
-                                ListTile(
-                                  leading: const Icon(
-                                    Icons.account_box_outlined,
-                                  ),
-                                  title: const Text('Profile'),
-                                  subtitle: Text(
-                                    '${_customer?['mobile'] ?? ''}${(_customer?['email'] ?? '').toString().isEmpty ? '' : '  |  ${_customer?['email']}'}',
-                                  ),
-                                  onTap: () {
-                                    Navigator.pop(sheetContext);
-                                    _showCustomerProfile();
-                                  },
-                                ),
-                                ListTile(
-                                  leading: const Icon(
-                                    Icons.receipt_long_outlined,
-                                  ),
-                                  title: const Text('My orders'),
-                                  onTap: () {
-                                    Navigator.pop(sheetContext);
-                                    _openOrders();
-                                  },
-                                ),
-                                ListTile(
-                                  leading: const Icon(Icons.logout),
-                                  title: const Text('Sign out'),
-                                  onTap: () {
-                                    Navigator.pop(sheetContext);
-                                    _signOut();
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                  icon: Icon(
-                    _customer == null
-                        ? Icons.person_outline
-                        : Icons.account_circle_outlined,
-                  ),
-                ),
                 Badge(
                   isLabelVisible: _cartCount > 0,
                   label: Text('$_cartCount'),
@@ -358,25 +382,6 @@ class _StorefrontCatalogScreenState extends State<StorefrontCatalogScreen> {
                 ),
               ],
             ),
-            if (categories.length > 1) ...[
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 40,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: categories.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 8),
-                  itemBuilder: (_, index) {
-                    final category = categories.elementAt(index);
-                    return ChoiceChip(
-                      label: Text(category),
-                      selected: _category == category,
-                      onSelected: (_) => setState(() => _category = category),
-                    );
-                  },
-                ),
-              ),
-            ],
             const SizedBox(height: 12),
             if (_loading)
               const Center(
@@ -560,8 +565,74 @@ class _StorefrontCatalogScreenState extends State<StorefrontCatalogScreen> {
                   );
                 },
               ),
+            const SizedBox(height: 24),
+            const _StorefrontFooter(),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _StorefrontFooter extends StatelessWidget {
+  const _StorefrontFooter();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF082A4D),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Deval Enterprise LLP',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Dental equipment importer, supplier and dealer since 1987.',
+            style: TextStyle(color: Color(0xFFB9CDE0)),
+          ),
+          const Divider(color: Color(0x334A6D8D), height: 28),
+          const Row(
+            children: [
+              Icon(Icons.call_outlined, size: 18, color: Color(0xFFF9A825)),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '+91-99989 53124  |  +91-99989 83124',
+                  style: TextStyle(color: Color(0xFFB9CDE0)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Row(
+            children: [
+              Icon(Icons.email_outlined, size: 18, color: Color(0xFFF9A825)),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'info@devalllp.com',
+                  style: TextStyle(color: Color(0xFFB9CDE0)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          const Text(
+            '© Deval Enterprise LLP. All Rights Reserved.',
+            style: TextStyle(color: Color(0xFFB9CDE0), fontSize: 12),
+          ),
+        ],
       ),
     );
   }
@@ -830,6 +901,9 @@ class _StorefrontCartScreenState extends State<StorefrontCartScreen> {
         if (launched) {
           await _submitUpiReference(orderId);
           if (mounted) await _askForReview();
+          if (!mounted) return;
+          Navigator.popUntil(context, (route) => route.isFirst);
+          return;
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -844,13 +918,16 @@ class _StorefrontCartScreenState extends State<StorefrontCartScreen> {
       } else if (details.paymentMethod == 'neft') {
         await _showBankTransfer(orderId, result['bank']);
         if (mounted) await _askForReview();
+        if (!mounted) return;
+        Navigator.popUntil(context, (route) => route.isFirst);
+        return;
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Order placed successfully.')),
         );
         await _askForReview();
         if (!mounted) return;
-        Navigator.pop(context);
+        Navigator.popUntil(context, (route) => route.isFirst);
         return;
       }
       await _load();
@@ -917,7 +994,7 @@ class _StorefrontCartScreenState extends State<StorefrontCartScreen> {
         ).showSnackBar(const SnackBar(content: Text('Payment successful.')));
         await _askForReview();
         if (!mounted) return;
-        Navigator.pop(context);
+        Navigator.popUntil(context, (route) => route.isFirst);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -986,30 +1063,36 @@ class _StorefrontCartScreenState extends State<StorefrontCartScreen> {
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setDialog) => AlertDialog(
           title: const Text('Rate your experience'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(
-                  5,
-                  (i) => IconButton(
-                    icon: Icon(
-                      i < rating ? Icons.star : Icons.star_border,
-                      color: Colors.amber,
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  children: List.generate(
+                    5,
+                    (i) => IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                      visualDensity: VisualDensity.compact,
+                      icon: Icon(
+                        i < rating ? Icons.star : Icons.star_border,
+                        color: Colors.amber,
+                      ),
+                      onPressed: () => setDialog(() => rating = i + 1),
                     ),
-                    onPressed: () => setDialog(() => rating = i + 1),
                   ),
                 ),
-              ),
-              TextField(
-                controller: commentCtrl,
-                maxLines: 2,
-                decoration: const InputDecoration(
-                  labelText: 'Comment (optional)',
+                TextField(
+                  controller: commentCtrl,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'Comment (optional)',
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -1025,7 +1108,6 @@ class _StorefrontCartScreenState extends State<StorefrontCartScreen> {
       ),
     );
     final comment = commentCtrl.text.trim();
-    commentCtrl.dispose();
     commentCtrl.dispose();
     if (submitted != true) return;
     try {

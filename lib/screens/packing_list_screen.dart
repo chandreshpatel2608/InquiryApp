@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../config.dart';
 import '../services/api_service.dart';
@@ -106,7 +107,7 @@ class _PackingListScreenState extends State<PackingListScreen> {
           : RefreshIndicator(
               onRefresh: _load,
               child: ListView.builder(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 90),
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 112),
                 itemCount:
                     _records.where((record) {
                       final query = _search.trim().toLowerCase();
@@ -168,8 +169,8 @@ class _PackingListScreenState extends State<PackingListScreen> {
                             '${record['number'] ?? ''}  |  ${record['date'] ?? ''}\nLR: ${record['lrNumber'] ?? '-'}  |  ${(record['items'] as List?)?.length ?? 0} item(s)',
                           ),
                           const SizedBox(height: 2),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
+                          Wrap(
+                            alignment: WrapAlignment.end,
                             children: [
                               IconButton(
                                 tooltip: 'Edit Packing List',
@@ -197,6 +198,12 @@ class _PackingListScreenState extends State<PackingListScreen> {
                                   record,
                                   businessName: widget.businessName,
                                 ),
+                              ),
+                              IconButton(
+                                tooltip: 'Share images from a box as ZIP',
+                                icon: const Icon(Icons.folder_zip_outlined, size: 20),
+                                visualDensity: VisualDensity.compact,
+                                onPressed: () => _shareBoxImagesZip(record),
                               ),
                               if (widget.canDelete)
                                 IconButton(
@@ -300,6 +307,50 @@ class _PackingListScreenState extends State<PackingListScreen> {
       boxNo: confirmedBox,
     );
   }
+
+  Future<void> _shareBoxImagesZip(Map<String, dynamic> record) async {
+    final boxNumbers = ((record['items'] as List?) ?? const [])
+        .map((item) => (item['boxNo'] ?? '').toString().trim())
+        .where((box) => box.isNotEmpty && ((record['items'] as List?) ?? const []).any((item) => (item['boxNo'] ?? '').toString().trim() == box && (item['uploadItemPath'] ?? '').toString().isNotEmpty))
+        .toSet()
+        .toList()..sort();
+    if (boxNumbers.isEmpty) {
+      _message('No uploaded images are available in any box.');
+      return;
+    }
+
+    String selectedBox = boxNumbers.first;
+    final box = await showDialog<String?>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Share box images'),
+          content: DropdownButtonFormField<String>(
+            initialValue: selectedBox,
+            decoration: const InputDecoration(labelText: 'Box number'),
+            items: boxNumbers.map((value) => DropdownMenuItem(value: value, child: Text('Box $value'))).toList(),
+            onChanged: (value) { if (value != null) setDialogState(() => selectedBox = value); },
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+            FilledButton.icon(onPressed: () => Navigator.pop(dialogContext, selectedBox), icon: const Icon(Icons.share), label: const Text('Share ZIP')),
+          ],
+        ),
+      ),
+    );
+    if (box == null) return;
+    final bytes = await ApiService.downloadPackingBoxImagesZip(widget.userId, record['id'] as int, box);
+    if (bytes == null) {
+      _message('Unable to create the image ZIP.');
+      return;
+    }
+    await SharePlus.instance.share(ShareParams(files: [XFile.fromData(bytes, name: 'Packing_${record['number']}_Box_${box}_Images.zip', mimeType: 'application/zip')]));
+  }
+
+  void _message(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
 }
 
 class _PackingListForm extends StatefulWidget {
@@ -375,17 +426,20 @@ class _PackingListFormState extends State<_PackingListForm> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
     for (final row in _rows) {
-      if (row.image != null) {
-        row.uploadPath = await ApiService.uploadPackingItem(
-          widget.userId,
-          row.image!,
-        );
-        if (row.uploadPath == null) {
-          _message('Unable to upload an item image.');
-          setState(() => _saving = false);
-          return;
-        }
+      if (row.image == null) continue;
+      String? uploaded;
+      try {
+        uploaded = await ApiService.uploadPackingItem(widget.userId, row.image!);
+      } catch (error) {
+        uploaded = null;
       }
+      if (uploaded == null) {
+        _message('Unable to upload an item image.');
+        setState(() => _saving = false);
+        return;
+      }
+      row.uploadPath = uploaded;
+      row.image = null;
     }
     final result = await ApiService.savePackingList({
       'userId': widget.userId,
@@ -626,55 +680,113 @@ class _PackingListFormState extends State<_PackingListForm> {
               decoration: const InputDecoration(labelText: 'Length'),
             ),
             const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: OutlinedButton.icon(
-                icon: Icon(
-                  row.image == null ? Icons.upload_file : Icons.check_circle,
-                  color: row.image == null ? null : Colors.green,
-                ),
-                label: Text(
-                  row.image == null ? 'Upload Item' : 'Image Selected',
-                ),
-                onPressed: () async {
-                  final source = await showModalBottomSheet<ImageSource>(
-                    context: context,
-                    builder: (sheetContext) => SafeArea(
-                      child: Wrap(
-                        children: [
-                          ListTile(
-                            leading: const Icon(Icons.camera_alt),
-                            title: const Text('Take photo'),
-                            onTap: () =>
-                                Navigator.pop(sheetContext, ImageSource.camera),
-                          ),
-                          ListTile(
-                            leading: const Icon(Icons.photo_library),
-                            title: const Text('Choose from gallery'),
-                            onTap: () => Navigator.pop(
-                              sheetContext,
-                              ImageSource.gallery,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                  if (source == null) return;
-                  final image = await ImagePicker().pickImage(
-                    source: source,
-                    imageQuality: 82,
-                  );
-                  if (image != null) {
-                    setState(() => row.image = File(image.path));
-                  }
-                },
-              ),
+            _itemImageField(row),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _itemImageField(_PackingRow row) {
+    final hasImage =
+        row.image != null || (row.uploadPath ?? '').trim().isNotEmpty;
+    return Row(
+      children: [
+        _itemImageThumb(row),
+        const SizedBox(width: 10),
+        Expanded(
+          child: OutlinedButton.icon(
+            icon: Icon(
+              hasImage ? Icons.check_circle : Icons.upload_file,
+              color: hasImage ? Colors.green : null,
+            ),
+            label: Text(hasImage ? 'Change Image' : 'Upload Item'),
+            onPressed: () => _pickItemImage(row),
+          ),
+        ),
+        if (hasImage)
+          IconButton(
+            tooltip: 'Remove image',
+            icon: const Icon(Icons.close, color: Colors.red),
+            onPressed: () => setState(() {
+              row.image = null;
+              row.uploadPath = null;
+            }),
+          ),
+      ],
+    );
+  }
+
+  Widget _itemImageThumb(_PackingRow row) {
+    Widget? preview;
+    if (row.image != null) {
+      preview = Image.file(row.image!, fit: BoxFit.cover);
+    } else if ((row.uploadPath ?? '').trim().isNotEmpty) {
+      preview = Image.network(
+        _imageUrl(row.uploadPath!),
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) =>
+            const Icon(Icons.broken_image_outlined, color: Colors.grey),
+      );
+    }
+    return GestureDetector(
+      onTap: preview == null ? null : () => _showItemImage(row),
+      child: Container(
+        width: 56,
+        height: 56,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey.shade400),
+        ),
+        child: preview ?? const Icon(Icons.image_outlined, color: Colors.grey),
+      ),
+    );
+  }
+
+  void _showItemImage(_PackingRow row) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        child: InteractiveViewer(
+          child: row.image != null
+              ? Image.file(row.image!)
+              : Image.network(_imageUrl(row.uploadPath!)),
+        ),
+      ),
+    );
+  }
+
+  String _imageUrl(String path) =>
+      '${baseUrl.replaceAll('/digitalcard/api', '')}$path';
+
+  Future<void> _pickItemImage(_PackingRow row) async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Take photo'),
+              onTap: () => Navigator.pop(sheetContext, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Choose from gallery'),
+              onTap: () => Navigator.pop(sheetContext, ImageSource.gallery),
             ),
           ],
         ),
       ),
     );
+    if (source == null) return;
+    final image = await ImagePicker().pickImage(
+      source: source,
+      imageQuality: 82,
+    );
+    if (image == null || !mounted) return;
+    setState(() => row.image = File(image.path));
   }
 
   String? _positive(String? value) {

@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'config.dart';
-import 'screens/login_screen.dart';
+import 'screens/customer_storefront_screen.dart';
 import 'screens/home_screen.dart';
 import 'services/api_service.dart';
 
@@ -62,11 +62,11 @@ class _SplashScreenState extends State<SplashScreen> {
         if (!mounted) return;
 
         if (freshData == null) {
-          // User inactive or server unreachable — force re-login
-          await prefs.remove('saved_user');
+          // Keep the saved session when the API is temporarily unavailable.
+          appLogoPath = user['logoPath'] as String?;
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => const LoginScreen()),
+            MaterialPageRoute(builder: (_) => HomeScreen(userData: user)),
           );
           return;
         }
@@ -82,13 +82,13 @@ class _SplashScreenState extends State<SplashScreen> {
         await prefs.remove('saved_user');
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          MaterialPageRoute(builder: (_) => const CustomerStorefrontScreen()),
         );
       }
     } else {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        MaterialPageRoute(builder: (_) => const CustomerStorefrontScreen()),
       );
     }
   }

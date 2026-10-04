@@ -9,13 +9,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:dukan_smart/main.dart';
+import 'package:dukan_smart/screens/customer_storefront_screen.dart';
 
 void main() {
   testWidgets('App launches smoke test', (WidgetTester tester) async {
     SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(const DukanSmartApp());
     await tester.pumpAndSettle();
-    expect(find.text('Welcome'), findsOneWidget);
-    expect(find.text('Login with your credentials'), findsOneWidget);
+    expect(find.byType(CustomerStorefrontScreen), findsOneWidget);
   });
 }

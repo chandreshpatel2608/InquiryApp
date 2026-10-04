@@ -162,6 +162,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         OrderScreen(
                           userId: _userId,
                           businessName: _businessName,
+                          businessAddress: widget.userData['businessAddress']?.toString(),
                         ),
                       );
                     }),
@@ -442,6 +443,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       OrderScreen(
                         userId: _userId,
                         businessName: _businessName,
+                        businessAddress: widget.userData['businessAddress']?.toString(),
                       ),
                     ),
                   ),

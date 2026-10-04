@@ -183,12 +183,18 @@ class _LoginScreenState extends State<LoginScreen> {
                       style: TextStyle(fontSize: 13)),
                 ),
                 TextButton.icon(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const CustomerStorefrontScreen(),
-                    ),
-                  ),
+                  onPressed: () {
+                    if (Navigator.canPop(context)) {
+                      Navigator.pop(context);
+                      return;
+                    }
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const CustomerStorefrontScreen(),
+                      ),
+                    );
+                  },
                   icon: const Icon(Icons.shopping_bag_outlined, size: 18),
                   label: const Text('Customer Shopping'),
                 ),

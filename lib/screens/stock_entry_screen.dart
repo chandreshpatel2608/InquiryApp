@@ -22,6 +22,7 @@ class _StockEntryScreenState extends State<StockEntryScreen>
 
   List<dynamic> _summary = [];
   List<dynamic> _entries = [];
+  List<dynamic> _history = [];
   List<dynamic> _products = [];
   List<dynamic> _categories = [];
   bool _loading = true;
@@ -29,7 +30,7 @@ class _StockEntryScreenState extends State<StockEntryScreen>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 2, vsync: this);
+    _tabs = TabController(length: 3, vsync: this);
     _load();
   }
 
@@ -44,12 +45,14 @@ class _StockEntryScreenState extends State<StockEntryScreen>
     setState(() => _loading = true);
     final summary = await ApiService.getStockSummary(widget.userId, search: _search);
     final entries = await ApiService.getStockEntries(widget.userId, search: _search);
+    final history = await ApiService.getStockHistory(widget.userId);
     final products = await ApiService.getProducts(widget.userId);
     final categories = await ApiService.getCategories(widget.userId);
     if (mounted) {
       setState(() {
         _summary = summary;
         _entries = entries;
+        _history = history;
         _products = products;
         _categories = categories;
         _loading = false;
@@ -251,6 +254,7 @@ class _StockEntryScreenState extends State<StockEntryScreen>
           tabs: const [
             Tab(icon: Icon(Icons.dashboard), text: 'Current Stock'),
             Tab(icon: Icon(Icons.receipt_long), text: 'Purchase Entries'),
+            Tab(icon: Icon(Icons.history), text: 'Sale History'),
           ],
         ),
       ),
@@ -289,7 +293,7 @@ class _StockEntryScreenState extends State<StockEntryScreen>
                 ? const Center(child: CircularProgressIndicator())
                 : TabBarView(
                     controller: _tabs,
-                    children: [_buildSummary(), _buildEntries()],
+                    children: [_buildSummary(), _buildEntries(), _buildHistory()],
                   ),
           ),
         ],
@@ -375,6 +379,38 @@ class _StockEntryScreenState extends State<StockEntryScreen>
                   ),
                 ],
               ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildHistory() {
+    if (_history.isEmpty) {
+      return const Center(child: Text('No product sales history yet.'));
+    }
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(12),
+        itemCount: _history.length,
+        itemBuilder: (ctx, i) {
+          final sale = _history[i];
+          final isWeb = sale['source'] == 'Web Order';
+          return Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: (isWeb ? Colors.indigo : Colors.orange).withAlpha(30),
+                child: Icon(isWeb ? Icons.language : Icons.point_of_sale,
+                    color: isWeb ? Colors.indigo : Colors.orange),
+              ),
+              title: Text(sale['productName']?.toString() ?? '',
+                  style: const TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text('${sale['source'] ?? 'Sale'}  •  ${sale['reference'] ?? ''}\n${sale['date'] ?? ''}'),
+              trailing: Text('-${sale['quantity'] ?? 0}',
+                  style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
             ),
           );
         },
