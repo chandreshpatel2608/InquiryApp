@@ -171,7 +171,10 @@ class _OrderFormState extends State<_OrderForm> {
   Future<void> _load() async {
     final values = await Future.wait([
       ApiService.getCustomers(widget.userId),
-      ApiService.getProducts(widget.userId),
+      ApiService.getProducts(
+        widget.userId,
+        includeInactive: widget.existing != null,
+      ),
       ApiService.getTransports(widget.userId),
     ]);
     final existing = widget.existing;

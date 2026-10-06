@@ -365,9 +365,13 @@ class ApiService {
   // 4. WHATSAPP CATALOG (PRODUCTS)
   // ═══════════════════════════════════════════════════════════════════
 
-  static Future<List<dynamic>> getProducts(int userId) async {
+  static Future<List<dynamic>> getProducts(
+    int userId, {
+    bool includeInactive = false,
+  }) async {
+    final query = includeInactive ? '&includeInactive=true' : '';
     final res = await _client.get(
-      Uri.parse('$baseUrl/products?userId=$userId'),
+      Uri.parse('$baseUrl/products?userId=$userId$query'),
     );
     if (res.statusCode == 200) return jsonDecode(res.body);
     return [];
@@ -501,6 +505,36 @@ class ApiService {
       _client.get(Uri.parse('$baseUrl/storefront/default')),
       'Unable to open the store right now.',
     );
+  }
+
+  static Future<List<dynamic>> getStorefrontEvents(int cardProfileId) async {
+    final res = await _client.get(
+      Uri.parse('$baseUrl/storefront/$cardProfileId/events'),
+    );
+    if (res.statusCode == 200) return jsonDecode(res.body) as List<dynamic>;
+    return [];
+  }
+
+  /// Uploads a photo and returns the ids of visually similar products, best match first.
+  static Future<List<int>> imageSearchStorefront(
+    int cardProfileId,
+    String imagePath,
+  ) async {
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/storefront/$cardProfileId/image-search'),
+    )..files.add(await http.MultipartFile.fromPath('photo', imagePath));
+
+    final streamed = await request.send();
+    final res = await http.Response.fromStream(streamed);
+    if (res.statusCode != 200) {
+      throw ApiException('Image search failed. Please try another photo.');
+    }
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    return List<dynamic>.from(body['productIds'] ?? const [])
+        .map((id) => int.tryParse(id.toString()) ?? 0)
+        .where((id) => id > 0)
+        .toList();
   }
 
   static Future<Map<String, dynamic>> resolveStorefront(String slug) {

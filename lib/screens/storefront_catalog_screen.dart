@@ -21,6 +21,12 @@ class StorefrontCatalogScreen extends StatefulWidget {
   /// Text entered in the homepage product search.
   final String searchQuery;
 
+  /// Limits the grid to products the admin flagged as New Arrivals.
+  final bool newArrivalsOnly;
+
+  /// Product ids returned by an image search, best match first; null when not searching by image.
+  final List<int>? imageMatchIds;
+
   /// Reports the categories found in the catalogue so the header can list them.
   final ValueChanged<List<String>>? onCategoriesLoaded;
 
@@ -36,6 +42,8 @@ class StorefrontCatalogScreen extends StatefulWidget {
     this.category = 'All',
     this.brand = 'All',
     this.searchQuery = '',
+    this.newArrivalsOnly = false,
+    this.imageMatchIds,
     this.onCategoriesLoaded,
     this.onBrandsLoaded,
     this.onCustomerChanged,
@@ -47,10 +55,13 @@ class StorefrontCatalogScreen extends StatefulWidget {
 }
 
 class StorefrontCatalogScreenState extends State<StorefrontCatalogScreen> {
+  static const int _productBatchSize = 24;
+
   List<dynamic> _products = [];
   Map<String, dynamic> _cart = const {'items': [], 'count': 0, 'total': 0};
   Map<String, dynamic>? _customer;
   bool _loading = true;
+  int _visibleProductCount = _productBatchSize;
 
   String get _sessionKey => 'storefront_customer_${widget.cardProfileId}';
   String get _catalogCacheKey => 'storefront_catalog_${widget.cardProfileId}';
@@ -70,6 +81,33 @@ class StorefrontCatalogScreenState extends State<StorefrontCatalogScreen> {
   Future<void> openCustomerProfile() => _showCustomerProfile();
   Future<void> signOutCustomer() => _signOut();
   Future<void> openCart() => _openCart();
+
+  /// Reveals the next grid batch when the parent storefront scroll reaches the bottom.
+  void loadMoreProducts() {
+    if (_visibleProductCount >= _products.length) return;
+    setState(() => _visibleProductCount += _productBatchSize);
+  }
+
+  @override
+  void didUpdateWidget(covariant StorefrontCatalogScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.category != widget.category ||
+        oldWidget.brand != widget.brand ||
+        oldWidget.searchQuery != widget.searchQuery ||
+        oldWidget.newArrivalsOnly != widget.newArrivalsOnly ||
+        !_sameIds(oldWidget.imageMatchIds, widget.imageMatchIds)) {
+      _visibleProductCount = _productBatchSize;
+    }
+  }
+
+  bool _sameIds(List<int>? first, List<int>? second) {
+    if (identical(first, second)) return true;
+    if (first == null || second == null || first.length != second.length) return false;
+    for (var index = 0; index < first.length; index++) {
+      if (first[index] != second[index]) return false;
+    }
+    return true;
+  }
 
   int _number(dynamic value) {
     if (value is int) return value;
@@ -338,7 +376,9 @@ class StorefrontCatalogScreenState extends State<StorefrontCatalogScreen> {
       return const SizedBox.shrink();
     }
 
-    final visible = _products.where((p) {
+    final matchingProducts = _products.where((p) {
+      final matchesImage = widget.imageMatchIds == null ||
+          widget.imageMatchIds!.contains(_number(p['id']));
       final matchesCategory = widget.category == 'All' ||
           (p['categoryName']?.toString() ?? 'Other Products') == widget.category;
       final matchesBrand = widget.brand == 'All' ||
@@ -351,8 +391,20 @@ class StorefrontCatalogScreenState extends State<StorefrontCatalogScreen> {
         p['categoryName'],
       ].map((value) => value?.toString().toLowerCase() ?? '').join(' ');
       return matchesCategory && matchesBrand &&
+          matchesImage &&
+          (!widget.newArrivalsOnly || p['isNewArrival'] == true) &&
           (search.isEmpty || searchText.contains(search));
     }).toList();
+
+    // Image search returns ids ranked by similarity, so honour that order.
+    final imageMatchIds = widget.imageMatchIds;
+    if (imageMatchIds != null) {
+      matchingProducts.sort((a, b) => imageMatchIds
+          .indexOf(_number(a['id']))
+          .compareTo(imageMatchIds.indexOf(_number(b['id']))));
+    }
+    final visible = matchingProducts.take(_visibleProductCount).toList();
+    final hasMoreProducts = matchingProducts.length > visible.length;
 
     return Card(
       margin: EdgeInsets.zero,
@@ -398,17 +450,19 @@ class StorefrontCatalogScreenState extends State<StorefrontCatalogScreen> {
                 ),
               )
             else
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: visible.length,
-                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: 200,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: .68,
-                ),
-                itemBuilder: (_, index) {
+              Column(
+                children: [
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: visible.length,
+                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: 200,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: .68,
+                    ),
+                    itemBuilder: (_, index) {
                   final product = Map<String, dynamic>.from(
                     visible[index] as Map,
                   );
@@ -423,7 +477,7 @@ class StorefrontCatalogScreenState extends State<StorefrontCatalogScreen> {
                         : product['imagePath']?.toString(),
                   );
                   final quantity = _quantityFor(productId);
-                  return Card(
+                      return Card(
                     clipBehavior: Clip.antiAlias,
                     elevation: 1,
                     child: Column(
@@ -471,6 +525,29 @@ class StorefrontCatalogScreenState extends State<StorefrontCatalogScreen> {
                                     ),
                                     child: const Text(
                                       'SOLD OUT',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              if (!soldOut && product['isNewArrival'] == true)
+                                Positioned(
+                                  top: 8,
+                                  left: 8,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 3,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.orange.shade800,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: const Text(
+                                      'NEW',
                                       style: TextStyle(
                                         color: Colors.white,
                                         fontSize: 11,
@@ -562,8 +639,15 @@ class StorefrontCatalogScreenState extends State<StorefrontCatalogScreen> {
                         ),
                       ],
                     ),
-                  );
-                },
+                      );
+                    },
+                  ),
+                  if (hasMoreProducts)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 20, bottom: 4),
+                      child: CircularProgressIndicator(),
+                    ),
+                ],
               ),
             const SizedBox(height: 24),
             const _StorefrontFooter(),

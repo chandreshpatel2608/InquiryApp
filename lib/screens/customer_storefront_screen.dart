@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../services/api_service.dart';
 import 'login_screen.dart';
 import 'storefront_catalog_screen.dart';
+import 'storefront_events_screen.dart';
 
 enum _StorefrontMenuAction {
   customerLogin,
@@ -30,9 +32,18 @@ class _CustomerStorefrontScreenState extends State<CustomerStorefrontScreen> {
   List<String> _brands = const ['All'];
   String _brand = 'All';
   String _searchQuery = '';
+  bool _newArrivalsOnly = false;
+  List<int>? _imageMatchIds;
+  bool _imageSearching = false;
   Map<String, dynamic>? _customer;
   bool _loading = true;
   String? _error;
+
+  bool get _hasFilter =>
+      _category != 'All' ||
+      _brand != 'All' ||
+      _newArrivalsOnly ||
+      _imageMatchIds != null;
 
   @override
   void initState() {
@@ -100,6 +111,207 @@ class _CustomerStorefrontScreenState extends State<CustomerStorefrontScreen> {
     setState(() => _customer = customer);
   }
 
+  Future<void> _openEvents() async {
+    final profileId = _cardProfileId;
+    if (profileId == null) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => StorefrontEventsScreen(cardProfileId: profileId),
+      ),
+    );
+  }
+
+  /// Lets the shopper photograph or pick a product picture and matches it against the catalogue.
+  Future<void> _startImageSearch() async {
+    final profileId = _cardProfileId;
+    if (profileId == null) return;
+
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Take a photo'),
+              onTap: () => Navigator.pop(sheetContext, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choose from gallery'),
+              onTap: () => Navigator.pop(sheetContext, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+
+    final picked = await ImagePicker().pickImage(
+      source: source,
+      maxWidth: 1280,
+      imageQuality: 85,
+    );
+    if (picked == null || !mounted) return;
+
+    setState(() => _imageSearching = true);
+    try {
+      final ids = await ApiService.imageSearchStorefront(profileId, picked.path);
+      if (!mounted) return;
+      setState(() {
+        _imageMatchIds = ids;
+        _category = 'All';
+        _brand = 'All';
+        _newArrivalsOnly = false;
+        _searchQuery = '';
+      });
+      if (ids.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No similar products found. Try another photo.'),
+          ),
+        );
+      }
+    } on ApiException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } finally {
+      if (mounted) setState(() => _imageSearching = false);
+    }
+  }
+
+  Future<void> _pickCategory() => _pickFromList(
+        title: 'Category',
+        searchHint: 'Search Category',
+        options: _categories,
+        selected: _category,
+        onPicked: (value) => setState(() => _category = value),
+      );
+
+  Future<void> _pickBrand() => _pickFromList(
+        title: 'Brand',
+        searchHint: 'Search Brand',
+        options: _brands,
+        selected: _brand,
+        onPicked: (value) => setState(() => _brand = value),
+      );
+
+  /// Full-height picker sheet with its own search box, mirroring the website mega menu.
+  Future<void> _pickFromList({
+    required String title,
+    required String searchHint,
+    required List<String> options,
+    required String selected,
+    required ValueChanged<String> onPicked,
+  }) async {
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        var filter = '';
+        return StatefulBuilder(
+          builder: (_, setSheetState) {
+            final visible = options
+                .where((o) =>
+                    filter.isEmpty ||
+                    o.toLowerCase().contains(filter.toLowerCase()))
+                .toList();
+            return SizedBox(
+              height: MediaQuery.of(sheetContext).size.height * .8,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: Row(
+                      children: [
+                        Text(
+                          title,
+                          style: Theme.of(sheetContext).textTheme.titleMedium,
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          onPressed: () => Navigator.pop(sheetContext),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: TextField(
+                      autofocus: false,
+                      onChanged: (value) => setSheetState(() => filter = value),
+                      decoration: InputDecoration(
+                        hintText: searchHint,
+                        isDense: true,
+                        prefixIcon: const Icon(Icons.search),
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: visible.length,
+                      itemBuilder: (_, index) {
+                        final option = visible[index];
+                        return ListTile(
+                          title: Text(option == 'All' ? 'All $title' : option),
+                          trailing: option == selected
+                              ? const Icon(Icons.check)
+                              : const Icon(Icons.chevron_right),
+                          onTap: () => Navigator.pop(sheetContext, option),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+    if (picked != null) onPicked(picked);
+  }
+
+  Widget _menuButton({
+    required IconData icon,
+    required String label,
+    VoidCallback? onTap,
+    bool active = false,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: TextButton.icon(
+        onPressed: onTap,
+        icon: Icon(icon, size: 18),
+        label: Text(label),
+        style: TextButton.styleFrom(
+          foregroundColor: active ? scheme.onPrimary : scheme.onSurface,
+          backgroundColor: active ? scheme.primary : scheme.surfaceContainerHighest,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _filterChip(String label, VoidCallback onClear) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: InputChip(label: Text(label), onDeleted: onClear),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -158,9 +370,7 @@ class _CustomerStorefrontScreenState extends State<CustomerStorefrontScreen> {
           ),
         ],
         bottom: PreferredSize(
-          preferredSize: Size.fromHeight(
-            64 + (_categories.length > 1 ? 48 : 0) + (_brands.length > 1 ? 48 : 0),
-          ),
+          preferredSize: Size.fromHeight(64 + 48 + (_hasFilter ? 44 : 0)),
           child: Column(
             children: [
               Padding(
@@ -171,6 +381,17 @@ class _CustomerStorefrontScreenState extends State<CustomerStorefrontScreen> {
                   decoration: InputDecoration(
                     hintText: 'Search dental products',
                     prefixIcon: const Icon(Icons.search),
+                    suffixIcon: IconButton(
+                      tooltip: 'Search by image',
+                      onPressed: _imageSearching ? null : _startImageSearch,
+                      icon: _imageSearching
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.image_search),
+                    ),
                     isDense: true,
                     filled: true,
                     fillColor: Theme.of(context).colorScheme.surface,
@@ -178,40 +399,75 @@ class _CustomerStorefrontScreenState extends State<CustomerStorefrontScreen> {
                   ),
                 ),
               ),
-              if (_categories.length > 1)
-                SizedBox(
-                  height: 48,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                    itemCount: _categories.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 8),
-                    itemBuilder: (_, index) {
-                      final category = _categories[index];
-                      return ChoiceChip(
-                        label: Text(category),
-                        selected: _category == category,
-                        onSelected: (_) => setState(() => _category = category),
-                      );
-                    },
-                  ),
+              SizedBox(
+                height: 48,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
+                  children: [
+                    _menuButton(
+                      icon: Icons.grid_view_rounded,
+                      label: 'Category',
+                      active: _category != 'All',
+                      onTap: _categories.length > 1 ? _pickCategory : null,
+                    ),
+                    _menuButton(
+                      icon: Icons.sell_outlined,
+                      label: 'Brand',
+                      active: _brand != 'All',
+                      onTap: _brands.length > 1 ? _pickBrand : null,
+                    ),
+                    _menuButton(
+                      icon: Icons.auto_awesome,
+                      label: 'New Arrivals',
+                      active: _newArrivalsOnly,
+                      onTap: () => setState(
+                        () => _newArrivalsOnly = !_newArrivalsOnly,
+                      ),
+                    ),
+                    _menuButton(
+                      icon: Icons.image_search,
+                      label: 'Image Search',
+                      active: _imageMatchIds != null,
+                      onTap: _imageSearching ? null : _startImageSearch,
+                    ),
+                    _menuButton(
+                      icon: Icons.event_outlined,
+                      label: 'Events',
+                      onTap: _openEvents,
+                    ),
+                    _menuButton(
+                      icon: Icons.receipt_long_outlined,
+                      label: 'My Orders',
+                      onTap: () => _handleMenuAction(
+                        _StorefrontMenuAction.orders,
+                      ),
+                    ),
+                  ],
                 ),
-              if (_brands.length > 1)
+              ),
+              if (_hasFilter)
                 SizedBox(
-                  height: 48,
-                  child: ListView.separated(
+                  height: 44,
+                  child: ListView(
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                    itemCount: _brands.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 8),
-                    itemBuilder: (_, index) {
-                      final brand = _brands[index];
-                      return ChoiceChip(
-                        label: Text(brand == 'All' ? 'All Brands' : brand),
-                        selected: _brand == brand,
-                        onSelected: (_) => setState(() => _brand = brand),
-                      );
-                    },
+                    children: [
+                      if (_category != 'All')
+                        _filterChip(_category, () => setState(() => _category = 'All')),
+                      if (_brand != 'All')
+                        _filterChip(_brand, () => setState(() => _brand = 'All')),
+                      if (_newArrivalsOnly)
+                        _filterChip(
+                          'New Arrivals',
+                          () => setState(() => _newArrivalsOnly = false),
+                        ),
+                      if (_imageMatchIds != null)
+                        _filterChip(
+                          'Image match (${_imageMatchIds!.length})',
+                          () => setState(() => _imageMatchIds = null),
+                        ),
+                    ],
                   ),
                 ),
             ],
@@ -248,18 +504,28 @@ class _CustomerStorefrontScreenState extends State<CustomerStorefrontScreen> {
         ],
       );
     }
-    return SingleChildScrollView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(16),
-      child: StorefrontCatalogScreen(
-        key: _catalogKey,
-        cardProfileId: _cardProfileId,
-        category: _category,
-        brand: _brand,
-        searchQuery: _searchQuery,
-        onCategoriesLoaded: _onCategoriesLoaded,
-        onBrandsLoaded: _onBrandsLoaded,
-        onCustomerChanged: _onCustomerChanged,
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        if (notification.metrics.extentAfter < 360) {
+          _catalogKey.currentState?.loadMoreProducts();
+        }
+        return false;
+      },
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        child: StorefrontCatalogScreen(
+          key: _catalogKey,
+          cardProfileId: _cardProfileId,
+          category: _category,
+          brand: _brand,
+          searchQuery: _searchQuery,
+          newArrivalsOnly: _newArrivalsOnly,
+          imageMatchIds: _imageMatchIds,
+          onCategoriesLoaded: _onCategoriesLoaded,
+          onBrandsLoaded: _onBrandsLoaded,
+          onCustomerChanged: _onCustomerChanged,
+        ),
       ),
     );
   }

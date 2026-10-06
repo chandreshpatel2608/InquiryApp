@@ -399,7 +399,13 @@ class _PackingListFormState extends State<_PackingListForm> {
         row.height.text = item['height']?.toString() ?? '';
         row.weight.text = item['weight']?.toString() ?? '';
         row.length.text = item['length']?.toString() ?? '';
-        row.uploadPath = item['uploadItemPath']?.toString();
+        row.uploadPaths = ((item['uploadItemPaths'] as List?) ?? const [])
+            .map((path) => path.toString())
+            .where((path) => path.trim().isNotEmpty)
+            .toList();
+        if (row.uploadPaths.isEmpty && item['uploadItemPath'] != null) {
+          row.uploadPaths.add(item['uploadItemPath'].toString());
+        }
         _rows.add(row);
       }
       _rows.removeAt(0).dispose();
@@ -411,7 +417,10 @@ class _PackingListFormState extends State<_PackingListForm> {
     final values = await Future.wait([
       ApiService.getCustomers(widget.userId),
       ApiService.getTransports(widget.userId),
-      ApiService.getProducts(widget.userId),
+      ApiService.getProducts(
+        widget.userId,
+        includeInactive: widget.existing != null,
+      ),
     ]);
     if (!mounted) return;
     setState(() {
@@ -426,20 +435,23 @@ class _PackingListFormState extends State<_PackingListForm> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
     for (final row in _rows) {
-      if (row.image == null) continue;
-      String? uploaded;
-      try {
-        uploaded = await ApiService.uploadPackingItem(widget.userId, row.image!);
-      } catch (error) {
-        uploaded = null;
+      final uploadedPaths = <String>[];
+      for (final image in row.images) {
+        String? uploaded;
+        try {
+          uploaded = await ApiService.uploadPackingItem(widget.userId, image);
+        } catch (error) {
+          uploaded = null;
+        }
+        if (uploaded == null) {
+          _message('Unable to upload an item image.');
+          setState(() => _saving = false);
+          return;
+        }
+        uploadedPaths.add(uploaded);
       }
-      if (uploaded == null) {
-        _message('Unable to upload an item image.');
-        setState(() => _saving = false);
-        return;
-      }
-      row.uploadPath = uploaded;
-      row.image = null;
+      row.uploadPaths.addAll(uploadedPaths);
+      row.images.clear();
     }
     final result = await ApiService.savePackingList({
       'userId': widget.userId,
@@ -688,8 +700,7 @@ class _PackingListFormState extends State<_PackingListForm> {
   }
 
   Widget _itemImageField(_PackingRow row) {
-    final hasImage =
-        row.image != null || (row.uploadPath ?? '').trim().isNotEmpty;
+    final hasImages = row.images.isNotEmpty || row.uploadPaths.isNotEmpty;
     return Row(
       children: [
         _itemImageThumb(row),
@@ -697,20 +708,20 @@ class _PackingListFormState extends State<_PackingListForm> {
         Expanded(
           child: OutlinedButton.icon(
             icon: Icon(
-              hasImage ? Icons.check_circle : Icons.upload_file,
-              color: hasImage ? Colors.green : null,
+              hasImages ? Icons.add_photo_alternate_outlined : Icons.upload_file,
+              color: hasImages ? Colors.green : null,
             ),
-            label: Text(hasImage ? 'Change Image' : 'Upload Item'),
-            onPressed: () => _pickItemImage(row),
+            label: Text(hasImages ? 'Add Images' : 'Upload Images'),
+            onPressed: () => _pickItemImages(row),
           ),
         ),
-        if (hasImage)
+        if (hasImages)
           IconButton(
-            tooltip: 'Remove image',
+            tooltip: 'Remove all images',
             icon: const Icon(Icons.close, color: Colors.red),
             onPressed: () => setState(() {
-              row.image = null;
-              row.uploadPath = null;
+              row.images.clear();
+              row.uploadPaths.clear();
             }),
           ),
       ],
@@ -718,19 +729,22 @@ class _PackingListFormState extends State<_PackingListForm> {
   }
 
   Widget _itemImageThumb(_PackingRow row) {
-    Widget? preview;
-    if (row.image != null) {
-      preview = Image.file(row.image!, fit: BoxFit.cover);
-    } else if ((row.uploadPath ?? '').trim().isNotEmpty) {
+    Widget preview = const Icon(Icons.image_outlined, color: Colors.grey);
+    VoidCallback? onTap;
+    if (row.images.isNotEmpty) {
+      preview = Image.file(row.images.first, fit: BoxFit.cover);
+      onTap = () => _showItemImage(image: row.images.first);
+    } else if (row.uploadPaths.isNotEmpty) {
       preview = Image.network(
-        _imageUrl(row.uploadPath!),
+        _imageUrl(row.uploadPaths.first),
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) =>
             const Icon(Icons.broken_image_outlined, color: Colors.grey),
       );
+      onTap = () => _showItemImage(uploadPath: row.uploadPaths.first);
     }
     return GestureDetector(
-      onTap: preview == null ? null : () => _showItemImage(row),
+      onTap: onTap,
       child: Container(
         width: 56,
         height: 56,
@@ -739,19 +753,35 @@ class _PackingListFormState extends State<_PackingListForm> {
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: Colors.grey.shade400),
         ),
-        child: preview ?? const Icon(Icons.image_outlined, color: Colors.grey),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            preview,
+            if (row.images.length + row.uploadPaths.length > 1)
+              Align(
+                alignment: Alignment.bottomRight,
+                child: CircleAvatar(
+                  radius: 11,
+                  child: Text(
+                    '${row.images.length + row.uploadPaths.length}',
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
 
-  void _showItemImage(_PackingRow row) {
+  void _showItemImage({File? image, String? uploadPath}) {
     showDialog<void>(
       context: context,
       builder: (dialogContext) => Dialog(
         child: InteractiveViewer(
-          child: row.image != null
-              ? Image.file(row.image!)
-              : Image.network(_imageUrl(row.uploadPath!)),
+          child: image != null
+              ? Image.file(image)
+              : Image.network(_imageUrl(uploadPath!)),
         ),
       ),
     );
@@ -760,7 +790,7 @@ class _PackingListFormState extends State<_PackingListForm> {
   String _imageUrl(String path) =>
       '${baseUrl.replaceAll('/digitalcard/api', '')}$path';
 
-  Future<void> _pickItemImage(_PackingRow row) async {
+  Future<void> _pickItemImages(_PackingRow row) async {
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
       builder: (sheetContext) => SafeArea(
@@ -781,12 +811,16 @@ class _PackingListFormState extends State<_PackingListForm> {
       ),
     );
     if (source == null) return;
-    final image = await ImagePicker().pickImage(
-      source: source,
-      imageQuality: 82,
-    );
-    if (image == null || !mounted) return;
-    setState(() => row.image = File(image.path));
+    final picker = ImagePicker();
+    final images = <XFile>[];
+    if (source == ImageSource.gallery) {
+      images.addAll(await picker.pickMultiImage(imageQuality: 82));
+    } else {
+      final image = await picker.pickImage(source: source, imageQuality: 82);
+      if (image != null) images.add(image);
+    }
+    if (images.isEmpty || !mounted) return;
+    setState(() => row.images.addAll(images.map((image) => File(image.path))));
   }
 
   String? _positive(String? value) {
@@ -803,8 +837,8 @@ class _PackingRow {
   final height = TextEditingController();
   final weight = TextEditingController();
   final length = TextEditingController();
-  File? image;
-  String? uploadPath;
+  final images = <File>[];
+  List<String> uploadPaths = [];
 
   Map<String, dynamic> toJson() => {
     'productId': productId,
@@ -814,7 +848,8 @@ class _PackingRow {
     'height': double.tryParse(height.text),
     'weight': double.tryParse(weight.text),
     'length': double.tryParse(length.text),
-    'uploadItemPath': uploadPath,
+    'uploadItemPath': uploadPaths.isEmpty ? null : uploadPaths.first,
+    'uploadItemPaths': uploadPaths,
   };
 
   void dispose() {
