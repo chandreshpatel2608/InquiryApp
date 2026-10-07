@@ -10,10 +10,10 @@ plugins {
 val brandedAppName =
     (project.findProperty("appName") as String?)
         ?: System.getenv("APP_NAME")
-        ?: "Devalllp"
+        ?: "RudraEcommerce"
 
 android {
-    namespace = "com.devalllp.app"
+    namespace = "com.rudraecommerce.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -23,8 +23,8 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.devalllp.app"
+        // TODO: Specify your rudraecommerce unique Application ID (https://developer.android.com/studio/build/application-id.html).
+        applicationId = "com.rudraecommerce.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

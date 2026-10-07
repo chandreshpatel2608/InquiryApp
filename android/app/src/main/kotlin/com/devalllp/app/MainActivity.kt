@@ -1,4 +1,4 @@
-package com.devalllp.app
+package com.rudraecommerce.app
 
 import io.flutter.embedding.android.FlutterActivity
 
