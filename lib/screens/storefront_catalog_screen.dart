@@ -8,6 +8,14 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../config.dart';
 import '../services/api_service.dart';
+import 'storefront_product_detail_screen.dart';
+
+class StorefrontCategory {
+  final String name;
+  final String? imagePath;
+
+  const StorefrontCategory({required this.name, this.imagePath});
+}
 
 class StorefrontCatalogScreen extends StatefulWidget {
   final int? cardProfileId;
@@ -28,13 +36,16 @@ class StorefrontCatalogScreen extends StatefulWidget {
   final List<int>? imageMatchIds;
 
   /// Reports the categories found in the catalogue so the header can list them.
-  final ValueChanged<List<String>>? onCategoriesLoaded;
+  final ValueChanged<List<StorefrontCategory>>? onCategoriesLoaded;
 
   /// Reports the brands found in the catalogue so the header can list them.
   final ValueChanged<List<String>>? onBrandsLoaded;
 
   /// Keeps the top-level app bar in sync with the customer shopping session.
   final ValueChanged<Map<String, dynamic>?>? onCustomerChanged;
+
+  /// Opens the business/admin sign-in from the storefront footer.
+  final VoidCallback? onBusinessLogin;
 
   const StorefrontCatalogScreen({
     super.key,
@@ -47,6 +58,7 @@ class StorefrontCatalogScreen extends StatefulWidget {
     this.onCategoriesLoaded,
     this.onBrandsLoaded,
     this.onCustomerChanged,
+    this.onBusinessLogin,
   });
 
   @override
@@ -207,11 +219,20 @@ class StorefrontCatalogScreenState extends State<StorefrontCatalogScreen> {
   }
 
   void _publishFilters(List<dynamic> products) {
+    final categories = <String, StorefrontCategory>{};
+    for (final product in products) {
+      final name = product['categoryName']?.toString() ?? 'Other Products';
+      categories.putIfAbsent(
+        name,
+        () => StorefrontCategory(
+          name: name,
+          imagePath: product['categoryImagePath']?.toString(),
+        ),
+      );
+    }
     widget.onCategoriesLoaded?.call([
-      'All',
-      ...{
-        ...products.map((p) => p['categoryName']?.toString() ?? 'Other Products'),
-      },
+      const StorefrontCategory(name: 'All'),
+      ...categories.values,
     ]);
     widget.onBrandsLoaded?.call([
       'All',
@@ -278,12 +299,13 @@ class StorefrontCatalogScreenState extends State<StorefrontCatalogScreen> {
     return _number(item['quantity']);
   }
 
-  Future<void> _updateQuantity(int productId, int quantity) async {
+  Future<bool> _updateQuantity(int productId, int quantity) async {
     final profileId = widget.cardProfileId;
     final token = _token;
     if (profileId == null || token == null) {
       await _showAuth();
-      return;
+      if (_token == null) return false;
+      return _updateQuantity(productId, quantity);
     }
 
     try {
@@ -294,11 +316,14 @@ class StorefrontCatalogScreenState extends State<StorefrontCatalogScreen> {
         quantity: quantity,
       );
       if (mounted) setState(() => _cart = cart);
+      return true;
     } on ApiException catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.message)));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+      return false;
     }
   }
 
@@ -322,6 +347,23 @@ class StorefrontCatalogScreenState extends State<StorefrontCatalogScreen> {
       ),
     );
     await _refreshCart();
+  }
+
+  Future<void> _openProductDetail(
+    Map<String, dynamic> product,
+    int quantity,
+  ) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => StorefrontProductDetailScreen(
+          product: product,
+          quantity: quantity,
+          onCartQuantityChanged: _updateQuantity,
+        ),
+      ),
+    );
+    if (mounted) setState(() {});
   }
 
   Future<void> _openOrders() async {
@@ -477,10 +519,12 @@ class StorefrontCatalogScreenState extends State<StorefrontCatalogScreen> {
                         : product['imagePath']?.toString(),
                   );
                   final quantity = _quantityFor(productId);
-                      return Card(
-                    clipBehavior: Clip.antiAlias,
-                    elevation: 1,
-                    child: Column(
+                      return GestureDetector(
+                    onTap: () => _openProductDetail(product, quantity),
+                    child: Card(
+                      clipBehavior: Clip.antiAlias,
+                      elevation: 1,
+                      child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
@@ -637,9 +681,10 @@ class StorefrontCatalogScreenState extends State<StorefrontCatalogScreen> {
                                   ],
                                 ),
                         ),
-                      ],
+                        ],
+                      ),
                     ),
-                      );
+                  );
                     },
                   ),
                   if (hasMoreProducts)
@@ -650,7 +695,7 @@ class StorefrontCatalogScreenState extends State<StorefrontCatalogScreen> {
                 ],
               ),
             const SizedBox(height: 24),
-            const _StorefrontFooter(),
+            _StorefrontFooter(onBusinessLogin: widget.onBusinessLogin),
           ],
         ),
       ),
@@ -659,7 +704,9 @@ class StorefrontCatalogScreenState extends State<StorefrontCatalogScreen> {
 }
 
 class _StorefrontFooter extends StatelessWidget {
-  const _StorefrontFooter();
+  final VoidCallback? onBusinessLogin;
+
+  const _StorefrontFooter({this.onBusinessLogin});
 
   @override
   Widget build(BuildContext context) {
@@ -711,6 +758,15 @@ class _StorefrontFooter extends StatelessWidget {
               ),
             ],
           ),
+          if (onBusinessLogin != null) ...[
+            const SizedBox(height: 14),
+            TextButton.icon(
+              onPressed: onBusinessLogin,
+              style: TextButton.styleFrom(foregroundColor: Colors.white),
+              icon: const Icon(Icons.admin_panel_settings_outlined),
+              label: const Text('Business / Admin Login'),
+            ),
+          ],
           const SizedBox(height: 18),
           const Text(
             '© Deval Enterprise LLP. All Rights Reserved.',

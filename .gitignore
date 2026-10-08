@@ -65,3 +65,4 @@ app.*.map.json
 /.vs/inquriyapp/FileContentIndex/90850bb6-7464-4abf-acee-a01dc22d5cd5.vsidx
 /.vs/inquriyapp/FileContentIndex/a2b038d8-a90e-4831-a94f-4f6ae1c1870f.vsidx
 *.vsidx
+*.json

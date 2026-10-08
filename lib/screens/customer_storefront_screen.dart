@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../config.dart';
 import '../services/api_service.dart';
 import 'login_screen.dart';
 import 'storefront_catalog_screen.dart';
@@ -8,7 +9,6 @@ import 'storefront_events_screen.dart';
 
 enum _StorefrontMenuAction {
   customerLogin,
-  businessLogin,
   profile,
   orders,
   signOut,
@@ -27,7 +27,9 @@ class _CustomerStorefrontScreenState extends State<CustomerStorefrontScreen> {
   final _catalogKey = GlobalKey<StorefrontCatalogScreenState>();
   int? _cardProfileId;
   String _businessName = 'Shop';
-  List<String> _categories = const ['All'];
+  List<StorefrontCategory> _categories = const [
+    StorefrontCategory(name: 'All'),
+  ];
   String _category = 'All';
   List<String> _brands = const ['All'];
   String _brand = 'All';
@@ -75,12 +77,6 @@ class _CustomerStorefrontScreenState extends State<CustomerStorefrontScreen> {
     switch (action) {
       case _StorefrontMenuAction.customerLogin:
         await _catalogKey.currentState?.openCustomerSignIn();
-      case _StorefrontMenuAction.businessLogin:
-        if (!mounted) return;
-        await Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-        );
       case _StorefrontMenuAction.profile:
         await _catalogKey.currentState?.openCustomerProfile();
       case _StorefrontMenuAction.orders:
@@ -90,11 +86,13 @@ class _CustomerStorefrontScreenState extends State<CustomerStorefrontScreen> {
     }
   }
 
-  void _onCategoriesLoaded(List<String> categories) {
+  void _onCategoriesLoaded(List<StorefrontCategory> categories) {
     if (!mounted) return;
     setState(() {
       _categories = categories;
-      if (!categories.contains(_category)) _category = 'All';
+      if (!categories.any((category) => category.name == _category)) {
+        _category = 'All';
+      }
     });
   }
 
@@ -185,13 +183,83 @@ class _CustomerStorefrontScreenState extends State<CustomerStorefrontScreen> {
     }
   }
 
-  Future<void> _pickCategory() => _pickFromList(
-        title: 'Category',
-        searchHint: 'Search Category',
-        options: _categories,
-        selected: _category,
-        onPicked: (value) => setState(() => _category = value),
-      );
+  Future<void> _pickCategory() async {
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        var filter = '';
+        return StatefulBuilder(
+          builder: (_, setSheetState) {
+            final visible = _categories
+                .where(
+                  (category) =>
+                      filter.isEmpty ||
+                      category.name.toLowerCase().contains(filter.toLowerCase()),
+                )
+                .toList();
+            return SizedBox(
+              height: MediaQuery.of(sheetContext).size.height * .8,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: Row(
+                      children: [
+                        Text(
+                          'Category',
+                          style: Theme.of(sheetContext).textTheme.titleMedium,
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          onPressed: () => Navigator.pop(sheetContext),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: TextField(
+                      onChanged: (value) => setSheetState(() => filter = value),
+                      decoration: const InputDecoration(
+                        hintText: 'Search Category',
+                        isDense: true,
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: visible.length,
+                      itemBuilder: (_, index) {
+                        final category = visible[index];
+                        return ListTile(
+                          leading: _categoryImage(category),
+                          title: Text(
+                            category.name == 'All'
+                                ? 'All Categories'
+                                : category.name,
+                          ),
+                          trailing: category.name == _category
+                              ? const Icon(Icons.check)
+                              : const Icon(Icons.chevron_right),
+                          onTap: () => Navigator.pop(sheetContext, category.name),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+    if (picked != null) setState(() => _category = picked);
+  }
 
   Future<void> _pickBrand() => _pickFromList(
         title: 'Brand',
@@ -200,6 +268,43 @@ class _CustomerStorefrontScreenState extends State<CustomerStorefrontScreen> {
         selected: _brand,
         onPicked: (value) => setState(() => _brand = value),
       );
+
+  Widget _categoryImage(StorefrontCategory category) {
+    final imageUrl = _imageUrl(category.imagePath);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: SizedBox(
+        width: 42,
+        height: 42,
+        child: imageUrl.isEmpty
+            ? ColoredBox(
+                color: Theme.of(context).colorScheme.primaryContainer,
+                child: const Icon(Icons.category_outlined),
+              )
+            : Image.network(
+                imageUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => ColoredBox(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  child: const Icon(Icons.category_outlined),
+                ),
+              ),
+      ),
+    );
+  }
+
+  String _imageUrl(String? path) {
+    if (path == null || path.isEmpty) return '';
+    if (path.startsWith('http')) return path;
+    return '${baseUrl.replaceAll('/digitalcard/api', '').replaceAll('/api', '')}$path';
+  }
+
+  Future<void> _openBusinessLogin() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+    );
+  }
 
   /// Full-height picker sheet with its own search box, mirroring the website mega menu.
   Future<void> _pickFromList({
@@ -286,7 +391,7 @@ class _CustomerStorefrontScreenState extends State<CustomerStorefrontScreen> {
     VoidCallback? onTap,
     bool active = false,
   }) {
-    final scheme = Theme.of(context).colorScheme;
+    const brandBlue = Color(0xFF0B5CA8);
     return Padding(
       padding: const EdgeInsets.only(right: 6),
       child: TextButton.icon(
@@ -294,8 +399,8 @@ class _CustomerStorefrontScreenState extends State<CustomerStorefrontScreen> {
         icon: Icon(icon, size: 18),
         label: Text(label),
         style: TextButton.styleFrom(
-          foregroundColor: active ? scheme.onPrimary : scheme.onSurface,
-          backgroundColor: active ? scheme.primary : scheme.surfaceContainerHighest,
+          foregroundColor: active ? Colors.white : brandBlue,
+          backgroundColor: active ? brandBlue : Colors.white,
           padding: const EdgeInsets.symmetric(horizontal: 12),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
@@ -316,6 +421,8 @@ class _CustomerStorefrontScreenState extends State<CustomerStorefrontScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: const Color(0xFF0B5CA8),
+        foregroundColor: Colors.white,
         title: Text(_businessName, maxLines: 1, overflow: TextOverflow.ellipsis),
         actions: [
           PopupMenuButton<_StorefrontMenuAction>(
@@ -359,13 +466,6 @@ class _CustomerStorefrontScreenState extends State<CustomerStorefrontScreen> {
                   ),
                 ),
               ],
-              const PopupMenuItem(
-                value: _StorefrontMenuAction.businessLogin,
-                child: ListTile(
-                  leading: Icon(Icons.admin_panel_settings_outlined),
-                  title: Text('Business / admin login'),
-                ),
-              ),
             ],
           ),
         ],
@@ -525,6 +625,7 @@ class _CustomerStorefrontScreenState extends State<CustomerStorefrontScreen> {
           onCategoriesLoaded: _onCategoriesLoaded,
           onBrandsLoaded: _onBrandsLoaded,
           onCustomerChanged: _onCustomerChanged,
+          onBusinessLogin: _openBusinessLogin,
         ),
       ),
     );

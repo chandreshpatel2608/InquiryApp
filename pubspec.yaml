@@ -44,6 +44,7 @@ dependencies:
   pdf: ^3.11.1
   printing: ^5.13.3
   razorpay_flutter: ^1.4.0
+  webview_flutter: ^4.13.0
 
 dev_dependencies:
   flutter_test:

@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'config.dart';
-import 'screens/customer_storefront_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/website_storefront_screen.dart';
 import 'services/api_service.dart';
 
 void main() {
@@ -16,10 +16,10 @@ class DukanSmartApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-     title: 'Devalllp',
+      title: 'Devalllp',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorSchemeSeed: const Color(0xFFFF6B35),
+        colorSchemeSeed: const Color(0xFF0B5CA8),
         useMaterial3: true,
         inputDecorationTheme: InputDecorationTheme(
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -82,13 +82,13 @@ class _SplashScreenState extends State<SplashScreen> {
         await prefs.remove('saved_user');
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const CustomerStorefrontScreen()),
+          MaterialPageRoute(builder: (_) => const WebsiteStorefrontScreen()),
         );
       }
     } else {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const CustomerStorefrontScreen()),
+        MaterialPageRoute(builder: (_) => const WebsiteStorefrontScreen()),
       );
     }
   }
