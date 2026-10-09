@@ -500,12 +500,12 @@ class ApiService {
     return [];
   }
 
-  static Future<Map<String, dynamic>> getDefaultStorefront() {
-    return _storefrontResponse(
-      _client.get(Uri.parse('$baseUrl/storefront/default')),
-      'Unable to open the store right now.',
-    );
-  }
+  static const int _defaultStorefrontCardProfileId = 1;
+
+  static Future<Map<String, dynamic>> getDefaultStorefront() async => {
+    'cardProfileId': _defaultStorefrontCardProfileId,
+    'businessName': 'Shop',
+  };
 
   static Future<List<dynamic>> getStorefrontEvents(int cardProfileId) async {
     final res = await _client.get(
@@ -909,9 +909,11 @@ class ApiService {
     int packingListId,
     String boxNo,
   ) async {
-    final res = await _client.get(Uri.parse(
-      '$baseUrl/packing-lists/$packingListId/box/${Uri.encodeComponent(boxNo)}/images.zip?userId=$userId',
-    ));
+    final res = await _client.get(
+      Uri.parse(
+        '$baseUrl/packing-lists/$packingListId/box/${Uri.encodeComponent(boxNo)}/images.zip?userId=$userId',
+      ),
+    );
     if (res.statusCode == 200) return res.bodyBytes;
     return null;
   }
@@ -985,7 +987,9 @@ class ApiService {
   }
 
   static Future<bool> deleteOrder(int userId, int id) async {
-    final res = await _client.delete(Uri.parse('$baseUrl/orders/$id?userId=$userId'));
+    final res = await _client.delete(
+      Uri.parse('$baseUrl/orders/$id?userId=$userId'),
+    );
     return res.statusCode == 200;
   }
 
@@ -996,7 +1000,8 @@ class ApiService {
     final res = await _client.post(
       Uri.parse('$baseUrl/orders/$id/send-to-packing-list?userId=$userId'),
     );
-    if (res.statusCode == 200) return {'success': true, ...jsonDecode(res.body)};
+    if (res.statusCode == 200)
+      return {'success': true, ...jsonDecode(res.body)};
     return _errBody(res, 'Unable to send order to packing list.');
   }
 
@@ -1082,9 +1087,9 @@ class ApiService {
     int? productId,
   }) async {
     final product = productId == null ? '' : '&productId=$productId';
-    final res = await _client.get(Uri.parse(
-      '$baseUrl/stock/history?userId=$userId$product',
-    ));
+    final res = await _client.get(
+      Uri.parse('$baseUrl/stock/history?userId=$userId$product'),
+    );
     if (res.statusCode == 200) return jsonDecode(res.body);
     return [];
   }

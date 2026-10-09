@@ -674,7 +674,7 @@ class _StorefrontFooter extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Deval Enterprise LLP',
+            'Rudra Technology',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: Colors.white,
               fontWeight: FontWeight.w700,
@@ -705,15 +705,42 @@ class _StorefrontFooter extends StatelessWidget {
               SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'info@devalllp.com',
+                  'info@rudratechnology.co.in',
                   style: TextStyle(color: Color(0xFFB9CDE0)),
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 10),
+          InkWell(
+            onTap: () async {
+              final launched = await launchUrl(
+                Uri.parse('https://rudratechnology.co.in/'),
+                mode: LaunchMode.externalApplication,
+              );
+              if (!launched && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Could not open the website.')),
+                );
+              }
+            },
+            child: const Row(
+              children: [
+                Icon(Icons.language, size: 18, color: Color(0xFFF9A825)),
+                SizedBox(width: 8),
+                Text(
+                  'rudratechnology.co.in',
+                  style: TextStyle(
+                    color: Color(0xFFB9CDE0),
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 18),
           const Text(
-            '© Deval Enterprise LLP. All Rights Reserved.',
+            '© Rudra Technology. All Rights Reserved.',
             style: TextStyle(color: Color(0xFFB9CDE0), fontSize: 12),
           ),
         ],

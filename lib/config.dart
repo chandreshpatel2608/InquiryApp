@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 
 // API endpoint. Override at build/run time WITHOUT editing this file:
 //   flutter run   --dart-define=API_BASE_URL=https://10.0.2.2:7076/digitalcard/api
-//   flutter build --dart-define=API_BASE_URL=https://devalllp.in/digitalcard/api
+//   flutter build --dart-define=API_BASE_URL=https://rudratechnology.co.in/digitalcard/api
 // Common values:
 //   Android emulator -> local PC : https://10.0.2.2:7076/digitalcard/api
 //   iOS simulator    -> local    : https://localhost:7076/digitalcard/api
 //   Real device (same Wi-Fi)     : https://<your-PC-IP>:7076/digitalcard/api
 const String baseUrl = String.fromEnvironment(
   'API_BASE_URL',
-  defaultValue: 'https://devalllp.in/digitalcard/api',
+  defaultValue: 'https://rudratechnology.co.in/digitalcard/api',
 );
 
 /// Global company logo path — set after login from userData['logoPath'].

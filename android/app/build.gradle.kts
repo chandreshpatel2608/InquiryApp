@@ -10,7 +10,7 @@ plugins {
 val brandedAppName =
     (project.findProperty("appName") as String?)
         ?: System.getenv("APP_NAME")
-        ?: "Devalllp"
+    ?: "Rudra Ecommerce"
 
 android {
     namespace = "com.devalllp.app"
@@ -51,7 +51,12 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig =
+                if (rootProject.file("key.properties").exists()) {
+                    signingConfigs.getByName("release")
+                } else {
+                    signingConfigs.getByName("debug")
+                }
         }
     }
 }
