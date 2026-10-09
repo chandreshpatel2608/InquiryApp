@@ -15,7 +15,10 @@ void main() {
   testWidgets('App launches smoke test', (WidgetTester tester) async {
     SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(const DukanSmartApp());
-    await tester.pumpAndSettle();
+    // Splash reads prefs, then routes to the storefront. Avoid pumpAndSettle:
+    // the storefront shows a looping progress indicator while loading.
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump(const Duration(milliseconds: 500));
     expect(find.byType(CustomerStorefrontScreen), findsOneWidget);
   });
 }

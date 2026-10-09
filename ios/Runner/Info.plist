@@ -10,6 +10,20 @@
 	<string>Rudra Inquiry</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Camera access is used to attach item photos to packing lists.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Photo library access is used to pick item, logo and post images.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Microphone access is used for voice input.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Speech recognition is used to convert your voice into text.</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>whatsapp</string>
+		<string>tel</string>
+		<string>sms</string>
+		<string>mailto</string>
+		<string>https</string>
+	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
