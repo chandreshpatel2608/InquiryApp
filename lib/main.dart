@@ -15,9 +15,12 @@ class DukanSmartApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const brandColor = Color(0xFF914B36);
+    const pageColor = Color(0xFFFFF9F6);
     final colorScheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xFF168CC4),
+      seedColor: brandColor,
       brightness: Brightness.light,
+      surface: pageColor,
     );
 
     return MaterialApp(
@@ -26,34 +29,35 @@ class DukanSmartApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: colorScheme,
         useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFF4F7FA),
+        scaffoldBackgroundColor: pageColor,
         appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFFF4F7FA),
-          foregroundColor: Color(0xFF173247),
+          backgroundColor: pageColor,
+          foregroundColor: Color(0xFF241E1C),
           elevation: 0,
-          scrolledUnderElevation: 1,
+          scrolledUnderElevation: 0,
         ),
         cardTheme: CardThemeData(
-          color: Colors.white,
-          elevation: 1,
+          color: pageColor,
+          elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: brandColor, width: 1.5),
           ),
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: Colors.white,
+          fillColor: pageColor,
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: brandColor, width: 1.5),
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFFD9E3EA)),
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: brandColor, width: 1.5),
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: brandColor, width: 2),
           ),
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,
@@ -62,22 +66,24 @@ class DukanSmartApp extends StatelessWidget {
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            backgroundColor: brandColor,
+            foregroundColor: Colors.white,
+            shape: const StadiumBorder(),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           ),
         ),
         filledButtonTheme: FilledButtonThemeData(
           style: FilledButton.styleFrom(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            backgroundColor: brandColor,
+            foregroundColor: Colors.white,
+            shape: const StadiumBorder(),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           ),
         ),
         snackBarTheme: const SnackBarThemeData(
           behavior: SnackBarBehavior.floating,
+          backgroundColor: Color(0xFF914B36),
+          contentTextStyle: TextStyle(color: Colors.white),
         ),
       ),
       home: const SplashScreen(),
